@@ -1,0 +1,4 @@
+/teamspace/studios/this_studio/yolo_seg_app/build/CMakeFiles/rebuild_cache.dir
+/teamspace/studios/this_studio/yolo_seg_app/build/CMakeFiles/edit_cache.dir
+/teamspace/studios/this_studio/yolo_seg_app/build/CMakeFiles/test_logger.dir
+/teamspace/studios/this_studio/yolo_seg_app/build/CMakeFiles/yoloSegApp.dir
