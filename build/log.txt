@@ -1,9 +1,0 @@
-[ERROR]Custom stream message1
-[WARNING]Custom stream message2
-[INFO]Custom stream message3
-[ERROR]Custom stream message1
-[WARNING]Custom stream message2
-[INFO]Custom stream message3
-[ERROR]Custom stream message1
-[WARNING]Custom stream message2
-[INFO]Custom stream message3
