@@ -58,7 +58,7 @@ CMAKE_BINARY_DIR = /teamspace/studios/this_studio/yolo_seg_app/build
 
 # Special rule for the target rebuild_cache
 rebuild_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
+	@echo "Running external command ..."
 	/usr/bin/cmake -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : rebuild_cache
 
@@ -69,7 +69,7 @@ rebuild_cache/fast: rebuild_cache
 
 # Special rule for the target edit_cache
 edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
+	@echo "Running external command ..."
 	/usr/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
 .PHONY : edit_cache
 
@@ -110,146 +110,6 @@ depend:
 	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
 .PHONY : depend
 
-#=============================================================================
-# Target rules for targets named test_logger
-
-# Build rule for target.
-test_logger: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 test_logger
-.PHONY : test_logger
-
-# fast build rule for target.
-test_logger/fast:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/build
-.PHONY : test_logger/fast
-
-#=============================================================================
-# Target rules for targets named yoloSegApp
-
-# Build rule for target.
-yoloSegApp: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 yoloSegApp
-.PHONY : yoloSegApp
-
-# fast build rule for target.
-yoloSegApp/fast:
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/build
-.PHONY : yoloSegApp/fast
-
-src/main.o: src/main.cpp.o
-
-.PHONY : src/main.o
-
-# target to build an object file
-src/main.cpp.o:
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/main.cpp.o
-.PHONY : src/main.cpp.o
-
-src/main.i: src/main.cpp.i
-
-.PHONY : src/main.i
-
-# target to preprocess a source file
-src/main.cpp.i:
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/main.cpp.i
-.PHONY : src/main.cpp.i
-
-src/main.s: src/main.cpp.s
-
-.PHONY : src/main.s
-
-# target to generate assembly for a file
-src/main.cpp.s:
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/main.cpp.s
-.PHONY : src/main.cpp.s
-
-src/modules/logger.o: src/modules/logger.cpp.o
-
-.PHONY : src/modules/logger.o
-
-# target to build an object file
-src/modules/logger.cpp.o:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/src/modules/logger.cpp.o
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/modules/logger.cpp.o
-.PHONY : src/modules/logger.cpp.o
-
-src/modules/logger.i: src/modules/logger.cpp.i
-
-.PHONY : src/modules/logger.i
-
-# target to preprocess a source file
-src/modules/logger.cpp.i:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/src/modules/logger.cpp.i
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/modules/logger.cpp.i
-.PHONY : src/modules/logger.cpp.i
-
-src/modules/logger.s: src/modules/logger.cpp.s
-
-.PHONY : src/modules/logger.s
-
-# target to generate assembly for a file
-src/modules/logger.cpp.s:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/src/modules/logger.cpp.s
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/modules/logger.cpp.s
-.PHONY : src/modules/logger.cpp.s
-
-src/modules/runner.o: src/modules/runner.cpp.o
-
-.PHONY : src/modules/runner.o
-
-# target to build an object file
-src/modules/runner.cpp.o:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/src/modules/runner.cpp.o
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/modules/runner.cpp.o
-.PHONY : src/modules/runner.cpp.o
-
-src/modules/runner.i: src/modules/runner.cpp.i
-
-.PHONY : src/modules/runner.i
-
-# target to preprocess a source file
-src/modules/runner.cpp.i:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/src/modules/runner.cpp.i
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/modules/runner.cpp.i
-.PHONY : src/modules/runner.cpp.i
-
-src/modules/runner.s: src/modules/runner.cpp.s
-
-.PHONY : src/modules/runner.s
-
-# target to generate assembly for a file
-src/modules/runner.cpp.s:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/src/modules/runner.cpp.s
-	$(MAKE) -f CMakeFiles/yoloSegApp.dir/build.make CMakeFiles/yoloSegApp.dir/src/modules/runner.cpp.s
-.PHONY : src/modules/runner.cpp.s
-
-tests/test_logger.o: tests/test_logger.cpp.o
-
-.PHONY : tests/test_logger.o
-
-# target to build an object file
-tests/test_logger.cpp.o:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/tests/test_logger.cpp.o
-.PHONY : tests/test_logger.cpp.o
-
-tests/test_logger.i: tests/test_logger.cpp.i
-
-.PHONY : tests/test_logger.i
-
-# target to preprocess a source file
-tests/test_logger.cpp.i:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/tests/test_logger.cpp.i
-.PHONY : tests/test_logger.cpp.i
-
-tests/test_logger.s: tests/test_logger.cpp.s
-
-.PHONY : tests/test_logger.s
-
-# target to generate assembly for a file
-tests/test_logger.cpp.s:
-	$(MAKE) -f CMakeFiles/test_logger.dir/build.make CMakeFiles/test_logger.dir/tests/test_logger.cpp.s
-.PHONY : tests/test_logger.cpp.s
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -258,20 +118,6 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... test_logger"
-	@echo "... yoloSegApp"
-	@echo "... src/main.o"
-	@echo "... src/main.i"
-	@echo "... src/main.s"
-	@echo "... src/modules/logger.o"
-	@echo "... src/modules/logger.i"
-	@echo "... src/modules/logger.s"
-	@echo "... src/modules/runner.o"
-	@echo "... src/modules/runner.i"
-	@echo "... src/modules/runner.s"
-	@echo "... tests/test_logger.o"
-	@echo "... tests/test_logger.i"
-	@echo "... tests/test_logger.s"
 .PHONY : help
 
 

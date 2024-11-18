@@ -1,17 +1,10 @@
+#pragma once
+
 #include <opencv2/opencv.hpp>
 #include <variant>
+#include <string>
+#include <vector>
 
-using videoSourceType = std::variant<std::string, int>;
+void preprocessSingleFrame(const cv::Mat&, cv::Mat&, cv::Size);
 
-class VideoProcessor
-{
-    public:
-        
-        VideoProcessor();
-        VideoProcessor(const videoSourceType& videoPath, const int batchSize)
-
-    private:
-        
-        videoSourceType videoPath;
-        const int batchSize;
-};
+void preprocessBatch(const std::vector<cv::Mat>&, std::vector<cv::Mat>&, cv::Size);
