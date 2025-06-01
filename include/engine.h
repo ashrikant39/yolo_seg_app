@@ -31,8 +31,8 @@ class InferenceEngine
         void createNewExecutionContext();
 
         void LoadInputBuffer(const std::vector<cv::Mat>&, void*, int, int, int, int);
-        void runAsynchronousInference();
-        void runSynchronousInference();
+        // void runAsynchronousInference();
+        // void runSynchronousInference();
 
     private:
 

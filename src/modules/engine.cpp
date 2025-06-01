@@ -95,7 +95,11 @@ void InferenceEngine::LoadInputBuffer(const std::vector<cv::Mat>& batchInputs, v
     size_t bufferSize = BATCH_SIZE * HEIGHT * WIDTH * CHANNELS * sizeof(float);
 }
 
-void InferenceEngine::runAsynchronousInference(const std::vector<cv::Mat>& batchInputs)
+// void InferenceEngine::runAsynchronousInference(const std::vector<cv::Mat>& batchInputs){
 
+// }
 
+// void InferenceEngine::(const std::vector<cv::Mat>& batchInputs){
+    
+// }
 
