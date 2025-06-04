@@ -6,9 +6,9 @@
 #include <memory>
 #include <sstream>
 
-using NVLogger = nvinfer1::ILogger;
+using namespace nvinfer1;
 
-class Logger : public NVLogger
+class Logger : public ILogger
 {
     public: 
 
@@ -17,15 +17,15 @@ class Logger : public NVLogger
         Logger();
 
         // Constructor : Logging to File 
-        Logger(const std::string&, NVLogger::Severity severity = NVLogger::Severity::kINFO);
+        Logger(const std::string&, ILogger::Severity severity = ILogger::Severity::kINFO);
 
         // Commonly logging conventions have the order: severity, msg
         // Severity is an enum class with kINTERNAL_ERROR = 0 , 
         // kERROR = 1 , kWARNING = 2 , kINFO = 3
-        void log(NVLogger::Severity, const char*) noexcept override;
+        void log(ILogger::Severity, const char*) noexcept override;
 
         // Get Logger Severity
-        NVLogger::Severity getLoggerSeverity(){
+        ILogger::Severity getLoggerSeverity(){
             return m_loggerSeverity;
         }
 
@@ -33,6 +33,6 @@ class Logger : public NVLogger
         ~Logger();
     
     private:
-        NVLogger::Severity m_loggerSeverity;
+        ILogger::Severity m_loggerSeverity;
         std::ofstream m_logStream;
 };

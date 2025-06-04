@@ -1,0 +1,1 @@
+g++ -std=c++17 tests/test_tensor_rt.cpp -o hello_trt -I$TRT_ROOT/include -I$CUDA_HOME/include -L$TRT_ROOT/lib -I$CUDA_HOME/lib64 -lnvinfer -lnvonnxparser -lnvinfer_plugin -lcudart -lstdc++fs

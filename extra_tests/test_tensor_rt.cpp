@@ -4,6 +4,7 @@
 #include <vector>
 #include <cassert>
 #include <memory>
+#include <NvOnnxParser.h>
 
 using namespace nvinfer1;
 
@@ -73,7 +74,6 @@ int main() {
         for(int64_t dim:dims.d){
             std::cout << dim << ", ";
         }
-        
         std::cout << ")" << "\n";
 
     }

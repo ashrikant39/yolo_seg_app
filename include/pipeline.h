@@ -9,27 +9,18 @@
 #include <vector>
 #include <video.h>
 
-using NVRuntime = nvinfer1::IRuntime;
-using NVEngine = nvinfer1::ICudaEngine;
-using NVExecContext = nvinfer1::IExecutionContext;
-
+using namespace nvinfer1;
 //  Wrapper class for running the inference
-class InferenceEngine
+class InferencePipeline
 {
     public:
 
-        InferenceEngine(const std::string&, Logger&);
+        InferencePipeline(const std::string&, Logger&);
 
-        ~InferenceEngine()
-        {
-            m_executionContext.reset();
-            m_engine.reset();
-            m_runtime.reset();
+        ~InferencePipeline(){
         }
 
         void createNewEngine(const std::string&);
-        void createNewExecutionContext();
-
         void LoadInputBuffer(const std::vector<cv::Mat>&, void*, int, int, int, int);
         // void runAsynchronousInference();
         // void runSynchronousInference();
@@ -41,9 +32,11 @@ class InferenceEngine
         // Engine has the lifecycle of an entire inference run.
         // Execution Context: contains all of the state associated with a particular invocation
 
-        NVLogger& m_logger; 
-        std::unique_ptr<NVRuntime> m_runtime;
-        std::unique_ptr<NVEngine> m_engine;
-        std::unique_ptr<NVExecContext> m_executionContext;
+        ILogger& m_logger; 
+        std::unique_ptr<IRuntime> m_runtime;
+        std::unique_ptr<ICudaEngine> m_engine;
 };
 
+
+// Load serialized engine file to an std::vector
+std::vector<char> readEngineFileToArray(std::string);
