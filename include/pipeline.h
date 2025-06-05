@@ -20,10 +20,10 @@ class InferencePipeline
         ~InferencePipeline(){
         }
 
-        void createNewEngine(const std::string&);
-        void LoadInputBuffer(const std::vector<cv::Mat>&, void*, int, int, int, int);
-        // void runAsynchronousInference();
-        // void runSynchronousInference();
+        void LoadImagesToDevice(const std::vector<cv::Mat>&);
+        void allocateIODeviceMemory();
+        void runAsynchronousInference(const cv::Mat&, std::unordered_map<std::string, void*>&);
+        void runSynchronousInference();
 
     private:
 
@@ -35,8 +35,10 @@ class InferencePipeline
         ILogger& m_logger; 
         std::unique_ptr<IRuntime> m_runtime;
         std::unique_ptr<ICudaEngine> m_engine;
+        std::unordered_map<std::string, void*> m_DevicePtrMap;
 };
 
 
 // Load serialized engine file to an std::vector
-std::vector<char> readEngineFileToArray(std::string);
+std::vector<char> readEngineFileToArray(const std::string&);
+size_t getElementSize(DataType);

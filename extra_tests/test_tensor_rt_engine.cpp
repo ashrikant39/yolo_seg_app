@@ -47,13 +47,24 @@ int main(int argc, char* argv[]) {
 
     int totalIOTensors = engine->getNbIOTensors();
     const char* names[totalIOTensors];
+    std::vector<Dims> tensorDims(totalIOTensors);
 
     for(int i=0; i<totalIOTensors; i++){
         names[i] = engine->getIOTensorName(i);
+        tensorDims[i] = engine->getTensorShape(names[i]);
     }
+    
+    // Tensor 0: (1, 3, 640, 640) -> Images
+    // Tensor 1: (1, 116, 8400) -> output0
+    // Tensor 2: (1, 32, 160, 160) -> Output2
 
+    
     int all = engine->getNbOptimizationProfiles();
     std::string format = engine->getTensorFormatDesc(names[0]);
+    DataType dtype = engine->getTensorDataType(names[0]);
+    dtype = engine->getTensorDataType(names[1]);
+    dtype = engine->getTensorDataType(names[2]);
+    std::cout << sizeof(dtype);
 
     // // 1. Create builder and network
     // // IBuilder* builder = createInferBuilder(logger);
@@ -85,7 +96,7 @@ int main(int argc, char* argv[]) {
 
     // network->markOutput(*output1);
     // network->markOutput(*output2);
-
+    
     // // 5. Build engine
     // std::unique_ptr<IBuilderConfig> config(builder->createBuilderConfig());
     // std::unique_ptr<IHostMemory> serializedModel(builder->buildSerializedNetwork(*network, *config));
@@ -96,7 +107,6 @@ int main(int argc, char* argv[]) {
 
     std::unique_ptr<IExecutionContext> context(engine->createExecutionContext());
     Dims strides = context->getTensorStrides(names[1]);
-
 
     // int32_t numIOTensors = engine->getNbIOTensors();
     // std::cout << "There are " << numIOTensors << " IO Tensors.\n";
