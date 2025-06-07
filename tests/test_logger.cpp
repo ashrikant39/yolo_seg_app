@@ -41,7 +41,7 @@ void testErrorLogging(std::string& filename){
 
     std::string message("Error Occured, I don't like this.");
     // Log a message with ERROR severity, which should be logged
-    logger.log(NVLogger::Severity::kERROR, message.c_str());
+    logger.log(ILogger::Severity::kERROR, message.c_str());
     // Check that the message was logged
     std::string lastLine;
     getLastLoggedMessage(filename, lastLine);
@@ -57,7 +57,7 @@ void testErrorLogging2(){
     Logger logger;
     std::string message("Error Occured, I don't like this.");
     // Log a message with ERROR severity, which should be logged
-    logger.log(NVLogger::Severity::kERROR, message.c_str());
+    logger.log(ILogger::Severity::kERROR, message.c_str());
     // Check that the message was logged
     std::string lastLine, fileName = "main.log";
     getLastLoggedMessage(fileName, lastLine);
