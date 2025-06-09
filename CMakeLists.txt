@@ -8,12 +8,12 @@ find_package(CUDA REQUIRED)
 
 # Library Header Paths
 include_directories(${CUDA_INCLUDE_DIRS})
-include_directories("/usr/include/x86_64-linux-gnu")  # TensorRT headers
+include_directories("$ENV{TRT_ROOT}/include")  # TensorRT headers
 include_directories("${CMAKE_SOURCE_DIR}/include")
 include_directories(${OpenCV_INCLUDE_DIRS})  # OpenCV headers
 
 # Linking to TensorRT Libraries
-link_directories("/usr/lib/x86_64-linux-gnu")  # TensorRT libraries
+link_directories("$ENV{TRT_ROOT}/lib")  # TensorRT libraries
 
 # Collect all .cpp files in the src directory
 file(GLOB MODULES "${CMAKE_SOURCE_DIR}/src/modules/*.cpp")
