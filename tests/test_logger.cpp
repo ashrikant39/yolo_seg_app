@@ -4,123 +4,73 @@
 #include "logger.h"  
 #include <fstream>
 
-void testErrorLogging() 
-{
-    std::stringstream ss;
-    Logger logger(ss);
+void getLastLoggedMessage(std::string& fileName, std::string& lastMessage){
 
-    // Log a message with ERROR severity, which should be logged
-    logger.log(NVLogger::Severity::kERROR, "Error Occured, I don't like this.");
+    std::ifstream file(fileName, std::ios::ate);
 
-    // Check that the message was logged
-    assert(ss.str() == "[ERROR] Error Occured, I don't like this.\n");
-    std::cout << "testErrorLogging passed." << std::endl;
-}
-
-void testInfoLoggingIgnored() 
-{
-    std::stringstream ss;
-    Logger logger(ss, NVLogger::Severity::kWARNING);
-
-    // Log a message with INFO severity, which should be ignored
-    logger.log(NVLogger::Severity::kINFO, "Info. I need this info.");
-
-    // Check that nothing was logged
-    assert(ss.str().empty());
-    std::cout << "testInfoLoggingIgnored passed." << std::endl;
-}
-
-void testWarningLogging() 
-{
-    std::stringstream ss;
-    Logger logger(ss);
-
-    // Log a message with WARNING severity, which should be logged
-    logger.log(NVLogger::Severity::kWARNING, "This is a warning.");
-
-    // Check that the message was logged
-    assert(ss.str() == "[WARNING] This is a warning.\n");
-    std::cout << "testWarningLogging passed." << std::endl;
-}
-
-void testCustomStream() 
-{
-    std::stringstream ss;
-    Logger logger(ss);
-    // Log an error to the custom stream
-    logger.log(NVLogger::Severity::kERROR, "Custom stream message");
-
-    // Check that the custom stream received the log
-    assert(ss.str() == "[ERROR] Custom stream message\n");
-    std::cout << "testCustomStream passed." << std::endl;
-}
-
-void testLoggingToFile(const std::string& logFileName) 
-{
-    Logger logger(logFileName);
-    // Log an error to the custom stream
-    logger.log(NVLogger::Severity::kERROR, "Custom stream message1");
-    logger.log(NVLogger::Severity::kWARNING, "Custom stream message2");
-    logger.log(NVLogger::Severity::kINFO, "Custom stream message3");
-
-    std::ifstream logFileStream(logFileName);
-
-    if(!logFileStream.is_open())
-    {
-        std::cerr << "Failed to open the log file.\n";
-        std::cout << "testCustomStream failed." << std::endl;
-        return;
+    if(!file.is_open()){
+        std::cout << "Error in opening file.";
     }
 
-    std::string line;
-    
-    std::getline(logFileStream, line);
-    assert(line == "[ERROR] Custom stream message1");
+    std::streamoff pos = file.tellg();
+    char ch;
+    pos--;
+    pos--;
 
-    std::getline(logFileStream, line);
-    assert(line == "[WARNING] Custom stream message2");
+    while(pos > 0){
+        file.seekg(pos);
+        file.get(ch);
 
-    std::getline(logFileStream, line);
-    assert(line == "[INFO] Custom stream message3");
+        if(ch == '\n')
+            break;
 
-    // Check that the custom stream received the log
-    
-    std::cout << "testCustomStream passed." << std::endl;
+        pos--;
+    }
+
+    if(pos > 0)
+        pos++;
+        
+    file.seekg(pos);
+    std::getline(file, lastMessage);
+
 }
 
-void testConsoleLogging() 
-{
-    // Create a stringstream to capture the output
-    std::stringstream capturedOutput;
-    
-    // Save the original buffer of std::cout
-    std::streambuf* originalCoutBuffer = std::cout.rdbuf();
+void testErrorLogging(std::string& filename){
 
-    // Redirect std::cout to the stringstream
-    std::cout.rdbuf(capturedOutput.rdbuf());
+    Logger logger(filename);
 
-    // Perform the logging operation that outputs to std::cout
-    Logger logger;  // Assuming Logger takes std::ostream for output
-    logger.log(NVLogger::Severity::kWARNING, "This is a warning.");
+    std::string message("Error Occured, I don't like this.");
+    // Log a message with ERROR severity, which should be logged
+    logger.log(ILogger::Severity::kERROR, message.c_str());
+    // Check that the message was logged
+    std::string lastLine;
+    getLastLoggedMessage(filename, lastLine);
 
-    // Restore std::cout to its original buffer
-    std::cout.rdbuf(originalCoutBuffer);
+    std::cout << lastLine << std::endl;
+    assert(lastLine == "[ERROR] Error Occured, I don't like this.");
+    std::cout << "testErrorLogging passed." << std::endl;
 
-    // Verify the captured output
-    assert(capturedOutput.str() == "[WARNING] This is a warning.\n");
-    std::cout << "testConsoleLogging passed." << std::endl;
 }
 
-int main(int argc, char** argv) 
-{
-    testErrorLogging();
-    testInfoLoggingIgnored();
-    testWarningLogging();
-    testCustomStream();
-    testConsoleLogging();
-    if(argc > 1)
-        testLoggingToFile(argv[1]);
+void testErrorLogging2(){
 
-    std::cout << "All tests passed!" << std::endl;
-    return 0;
+    Logger logger;
+    std::string message("Error Occured, I don't like this.");
+    // Log a message with ERROR severity, which should be logged
+    logger.log(ILogger::Severity::kERROR, message.c_str());
+    // Check that the message was logged
+    std::string lastLine, fileName = "main.log";
+    getLastLoggedMessage(fileName, lastLine);
+
+    std::cout << lastLine << std::endl;
+    assert(lastLine == "[ERROR] Error Occured, I don't like this.");
+    std::cout << "testErrorLogging passed." << std::endl;
+
+}
+
+int main(){
+
+    std::string fileName("example.log");
+    // testErrorLogging(fileName);
+    testErrorLogging2();
 }

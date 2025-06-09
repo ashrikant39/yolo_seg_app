@@ -2,7 +2,7 @@
 #include <fstream>
 #include <memory>
 #include <sstream>
-#include <engine.h>
+#include <pipeline.h>
 #include <video.h>
 
 int main()

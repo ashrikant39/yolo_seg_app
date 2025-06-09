@@ -6,49 +6,33 @@
 #include <memory>
 #include <sstream>
 
-using NVLogger = nvinfer1::ILogger;
+using namespace nvinfer1;
 
-class Logger : public NVLogger
+class Logger : public ILogger
 {
     public: 
 
-        // Default constructor : Logging to stdout 
-        // Since std::cout is not owned by the program, but std::ofstream can be,
-        // logStream is a simple pointer to the stream, whereas fileStream is a unique pointer
-        // to the file stream.
-
+        // Default constructor : Logging to "main.log" 
+        // fileStream is a unique pointer to the file stream.
         Logger();
 
         // Constructor : Logging to File 
-        Logger(const std::string&, NVLogger::Severity severity = NVLogger::Severity::kINFO);
+        Logger(const std::string&, ILogger::Severity severity = ILogger::Severity::kINFO);
 
-        // Constructor : Logging to a stringstream
-        // Since the stream has to be modified, const ref is not used here.
-        Logger(std::stringstream& stream, NVLogger::Severity severity = NVLogger::Severity::kINFO);
-
-        // Commonly logging convntions have the order: severity, msg
+        // Commonly logging conventions have the order: severity, msg
         // Severity is an enum class with kINTERNAL_ERROR = 0 , 
         // kERROR = 1 , kWARNING = 2 , kINFO = 3
-        void log(NVLogger::Severity, const char*) noexcept override;
+        void log(ILogger::Severity, const char*) noexcept override;
 
         // Get Logger Severity
-        NVLogger::Severity getLoggerSeverity()
-        {
-            return this->loggerSeverity;
-        }
-
-        bool assertStreamOwnership()
-        {
-            return this->ownTheStream;
+        ILogger::Severity getLoggerSeverity(){
+            return m_loggerSeverity;
         }
 
         // Destructor
         ~Logger();
     
     private:
-        NVLogger::Severity loggerSeverity;
-        bool ownTheStream;
-        std::unique_ptr<std::ofstream> fileStream;
-        std::ostream* logStream;
-
+        ILogger::Severity m_loggerSeverity;
+        std::ofstream m_logStream;
 };
