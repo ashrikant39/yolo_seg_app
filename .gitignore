@@ -1,0 +1,12 @@
+.vscode/
+assets/
+build/
+coc-settings.json
+**/*.txt
+**/*.log
+.cache/
+**/*.out
+*.sh
+dumps/
+commands/
+tests/
