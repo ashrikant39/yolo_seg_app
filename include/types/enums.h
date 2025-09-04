@@ -1,5 +1,10 @@
 #pragma once
 
+enum class ChannelOrderMode{
+    RGB         =   0,
+    BGR         =   1
+};
+
 enum class ComputeDataType : int{
     FLOAT32     =   0,
     FLOAT16     =   1,
@@ -10,6 +15,6 @@ enum class ComputeDataType : int{
 };
 
 enum class InferenceMode : int{
-    ASYNC   =   0,
-    SYNC    =   1
+    ASYNC       =   0,
+    SYNC        =   1
 };

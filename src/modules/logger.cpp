@@ -1,30 +1,29 @@
 #include "logger.h"
 #include <iostream>
 #include <stdexcept>
-#include <sstream>
 
 void Logger::assignStream(std::ios_base::openmode mode){
-    m_logStream = std::ofstream(m_logPath, mode);
+    _logStream = std::ofstream(_logPath, mode);
 
-    if(m_logStream.is_open()){
-        std::cout<<"Logging to file: "<<m_logPath<<"\n";
+    if(_logStream.is_open()){
+        std::cout<<"Logging to file: "<<_logPath<<"\n";
     }else{
-        throw std::runtime_error("Failes to open file: " + m_logPath.string());
+        throw std::runtime_error("Failes to open file: " + _logPath.string());
     }
 }
 
-// Default constructor : Logging to stdout 
+// Default constructor : Logging to a default file 
 Logger::Logger(): 
-    m_loggerSeverity(nvinfer1::ILogger::Severity::kINFO),
-    m_logPath("main.log"){
+    _loggerSeverity(nvinfer1::ILogger::Severity::kINFO),
+    _logPath(LoggerOptions::DEFAULT_LOG_FILE){
         assignStream(std::ios_base::out);
     }
 
 
 // Constructor : Logging to File 
 Logger::Logger(const fs::path& fileName, nvinfer1::ILogger::Severity severity):
-    m_logPath(fileName),
-    m_loggerSeverity(severity){
+    _logPath(fileName),
+    _loggerSeverity(severity){
         assignStream(std::ios_base::out);
 }
 
@@ -32,37 +31,44 @@ Logger::Logger(const fs::path& fileName, nvinfer1::ILogger::Severity severity):
 // severity is an enum, so treat severity levels as integers
 void Logger::log(Severity severity, const char* message) noexcept
 {
-    if(severity <= m_loggerSeverity)
+    if(severity <= _loggerSeverity)
     {
         if(severity == nvinfer1::ILogger::Severity::kINTERNAL_ERROR)
-            m_logStream << "[INTERNAL ERROR] " << message << std::endl;
+            _logStream << "[INTERNAL ERROR] " << message << std::endl;
 
         else if(severity == nvinfer1::ILogger::Severity::kERROR)
-            m_logStream << "[ERROR] " << message << std::endl;
+            _logStream << "[ERROR] " << message << std::endl;
 
         else if(severity == nvinfer1::ILogger::Severity::kWARNING)
-            m_logStream << "[WARNING] " << message << std::endl;
+            _logStream << "[WARNING] " << message << std::endl;
         
         else
-            m_logStream << "[INFO] " << message << std::endl;
+            _logStream << "[INFO] " << message << std::endl;
     }
 }
 
 
-void Logger::logTensorDims(Severity severity, const char* tensorName, const nvinfer1::Dims& tensorDims){
+void Logger::logTensorDims(Severity Severity, const char* tensorName, const nvinfer1::Dims& tensorDims){
     
-    std::stringstream ss;
-    ss << "Tensor Name: " << tensorName << "\t Tensor Dims: [";
+    _logStream << "Name: " << tensorName << "\tDims: " ;
     
-    int i;
-    
-    for(i=0; i<tensorDims.nbDims - 1; i++){
-        ss << tensorDims.d[i] << ", ";
+    for(int i=0; i<tensorDims.nbDims; i++){
+
+        if(i == 0){
+            _logStream << '[';
+        }
+
+        _logStream << tensorDims.d[i];
+
+        if(i<tensorDims.nbDims-1){
+            _logStream << ", ";
+        }
+        else{
+            _logStream << ']';
+        }
     }
 
-    ss << tensorDims.d[i] << "]";
-    log(severity, ss.str().c_str());
-    
+    _logStream << '\n';
 }
 
 Logger::~Logger() {

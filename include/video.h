@@ -1,26 +1,18 @@
 #pragma once
 
-#include <opencv2/opencv.hpp>
 #include <filesystem>
 #include <vector>
 #include "logger.h"
+#include "types/videoprocess_types.h"
 
 namespace fs = std::filesystem;
-
-struct ImageBatchData{
-    std::vector<cv::float16_t> dataBuffer;
-    std::vector<fs::path> filePaths;
-    
-    ImageBatchData(size_t batchSize, size_t totalImgElements){
-        dataBuffer.reserve(batchSize * totalImgElements);
-        filePaths.reserve(batchSize);
-    }
-};
-
 
 class VideoFromDirectory{
 
     public: 
+
+        VideoFromDirectory();
+
         VideoFromDirectory(
             const fs::path& dirPath,
             size_t batchSize,
@@ -30,11 +22,11 @@ class VideoFromDirectory{
         );
 
         size_t getTotalBatches(){
-            return (m_filesList.size() + m_batchSize - 1)/m_batchSize;
+            return (_filesList.size() + _batchSize - 1)/_batchSize;
         }
 
         size_t getTotalImages(){
-            return m_filesList.size();
+            return _filesList.size();
         }
 
         const ImageBatchData& getBatchDataPreProcessed(
@@ -46,9 +38,9 @@ class VideoFromDirectory{
         ~VideoFromDirectory() = default;
 
     private:
-        std::vector<fs::path> m_filesList;
-        size_t m_batchSize, m_imgH, m_imgW;
-        ImageBatchData m_batchData;
+        std::vector<fs::path> _filesList;
+        size_t _batchSize, _imgH, _imgW;
+        ImageBatchData _batchData;
 };
 
 

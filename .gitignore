@@ -6,7 +6,10 @@ coc-settings.json
 **/*.log
 .cache/
 **/*.out
+**/*.log
+**/*.txt
 *.sh
 dumps/
 commands/
 tests/
+logs/
