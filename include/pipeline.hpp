@@ -4,10 +4,10 @@
 #include <vector>
 #include <opencv2/core.hpp>
 #include <filesystem>
-#include "types/tensor_types.h"
-#include "logger.h"
-#include "video.h"
-#include "postprocess.h"
+#include "types/tensor_types.hpp"
+#include "logger.hpp"
+#include "video.hpp"
+#include "postprocess.hpp"
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;

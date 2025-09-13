@@ -1,4 +1,4 @@
-#include "pipeline.h"
+#include "pipeline.hpp"
 #include <cstdint>
 #include <fstream>
 #include <iostream>

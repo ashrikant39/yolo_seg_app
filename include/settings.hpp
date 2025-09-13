@@ -1,6 +1,6 @@
 #pragma once
 
-#include <types/enums.h>
+#include <types/enums.hpp>
 
 struct VideoSettings{
     static constexpr ChannelOrderMode CHANNEL_ORDER = ChannelOrderMode::BGR;

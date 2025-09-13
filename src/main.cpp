@@ -1,5 +1,5 @@
 #include <iostream>
-#include "pipeline.h"
+#include "pipeline.hpp"
 #include <cxxopts.hpp>
 
 int main(int argc, const char* argv[]){

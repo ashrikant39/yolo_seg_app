@@ -1,11 +1,11 @@
 #pragma once
 
-#include "types/tensor_types.h"
-#include "types/eigentensor_types.h"
-#include "types/postprocess_types.h"
-#include "logger.h"
+#include "types/tensor_types.hpp"
+#include "types/eigentensor_types.hpp"
+#include "types/postprocess_types.hpp"
+#include "logger.hpp"
 #include <vector>
-#include "options.h"
+#include "options.hpp"
 #include <opencv2/core.hpp>
 
 class PostProcessor{

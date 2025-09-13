@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "options.h"
+#include "options.hpp"
 #include <utility>
 
 using Severity = nvinfer1::ILogger::Severity;

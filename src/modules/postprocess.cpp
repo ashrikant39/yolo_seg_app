@@ -1,5 +1,5 @@
-#include "postprocess.h"
-#include "settings.h"
+#include "postprocess.hpp"
+#include "settings.hpp"
 
 void copyDataToFloat32(
     cv::float16_t* sourceDataPtr, 

@@ -1,7 +1,7 @@
-#include "video.h"
-#include "options.h"
-#include "settings.h"
-#include "types/enums.h"
+#include "video.hpp"
+#include "options.hpp"
+#include "settings.hpp"
+#include "types/enums.hpp"
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/core/cvdef.h>
@@ -13,7 +13,7 @@
 #include <opencv2/dnn.hpp>
 #include <nvToolsExt.h>
 #include <vector>
-#include "settings.h"
+#include "settings.hpp"
 
 #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
 #define NVTX_POP()      do { nvtxRangePop(); } while (0)

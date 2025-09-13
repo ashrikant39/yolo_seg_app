@@ -2,8 +2,8 @@
 
 #include <filesystem>
 #include <vector>
-#include "logger.h"
-#include "types/videoprocess_types.h"
+#include "logger.hpp"
+#include "types/videoprocess_types.hpp"
 
 namespace fs = std::filesystem;
 

@@ -4,7 +4,7 @@
 #include <memory>
 #include <opencv2/core.hpp>
 #include <opencv2/core/types.hpp>
-#include "types/eigentensor_types.h"
+#include "types/eigentensor_types.hpp"
 
 struct YoloBoxes{
     
