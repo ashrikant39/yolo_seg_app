@@ -10,9 +10,15 @@
 #include <cstring>
 #include <chrono>
 #include <nvToolsExt.h>
+#include <assert.h>
 
-#define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
-#define NVTX_POP()      do { nvtxRangePop(); } while (0)
+#ifndef NDEBUG
+    #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
+    #define NVTX_POP()      do { nvtxRangePop(); } while (0)
+#else
+    #define NVTX_RANGE(name) do { } while(0)
+    #define NVTX_POP
+#endif
 
 
 size_t getElementSize(nvinfer1::DataType dtype){

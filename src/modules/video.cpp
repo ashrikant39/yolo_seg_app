@@ -14,7 +14,6 @@
 #include <nvToolsExt.h>
 #include <vector>
 #include "settings.h"
-#include <thread>
 
 #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
 #define NVTX_POP()      do { nvtxRangePop(); } while (0)
@@ -57,9 +56,6 @@ VideoFromDirectory::VideoFromDirectory(
     _batchData(batchSize, imgH, imgW, 3){
         
         assert(fs::is_directory(dirPath));
-        
-        //cv::setUseOptimized(true);
-        //cv::setNumThreads(std::thread::hardware_concurrency());
 
         int totalImages = 0;
 
@@ -115,26 +111,24 @@ const ImageBatchData& VideoFromDirectory::getBatchDataPreProcessed(
                 if(image.empty()){
                     std::cerr << "Could not read image: " << _filesList[idx] << '\n';
                 }
-               
-                NVTX_RANGE("blobFromImage");
+                
                 preProcessedImage = cv::dnn::blobFromImage(
                         image,
                         VideoOptions::NORM_FACTOR_SCALING_MUL,
                         cv::Size(_imgW, _imgH),
                         cv::Scalar(),
-                        VideoSettings::CHANNEL_ORDER == ChannelOrderMode::BGR,
+                        VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
                         false,
                         CV_32F
                 );
-                NVTX_POP();
+
                 
-                NVTX_RANGE("MemCpyImages");
+
                 std::memcpy(
                         _batchData.images.ptr<cv::float16_t>(idx - startIdx),
                         preProcessedImage.ptr<cv::float16_t>(0),
                         totalElementsPerImage
                         );
-                NVTX_POP();
             }
             
         }

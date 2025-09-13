@@ -21,5 +21,5 @@ struct PostProcessingOptions{
 
 struct VideoOptions{
     static constexpr double NORM_FACTOR_ADD_TO_SCALED = 0.0;
-    static constexpr double NORM_FACTOR_SCALING_MUL = 1.0/255.0;
+    static constexpr double NORM_FACTOR_SCALING_MUL = 1.0;
 };

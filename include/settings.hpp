@@ -3,7 +3,7 @@
 #include <types/enums.h>
 
 struct VideoSettings{
-    static constexpr ChannelOrderMode CHANNEL_ORDER = ChannelOrderMode::RGB;
+    static constexpr ChannelOrderMode CHANNEL_ORDER = ChannelOrderMode::BGR;
 };
 
 struct ModelSettings{

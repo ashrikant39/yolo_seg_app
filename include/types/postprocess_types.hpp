@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <memory>
+#include <opencv2/core.hpp>
 #include <opencv2/core/types.hpp>
 #include "types/eigentensor_types.h"
 
@@ -34,14 +35,13 @@ struct YoloBoxes{
 
 struct YoloSegBoxOutput{
 
-    YoloBoxes _boxes;
-    int _classId;
-    float _conf;
-    EigenTensor<float, 2> _maskCoeffs;
-
+    YoloBoxes boxes;
+    int classId;
+    float conf;
+    EigenTensor<float, 2> maskCoeffs;
 };
 
 
 struct YoloSegMaskOutput{
-
+    cv::Mat masks;
 };
