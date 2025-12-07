@@ -30,7 +30,7 @@ PostProcessor::PostProcessor(
 
     for(const auto& [name, tensor]: inferenceTensorMap){
         
-        _postProcessTensorMap[name] = {
+        m_postProcessTensorMap[name] = {
             tensor.trtDtype,
             tensor.numElements,
             tensor.dims,
@@ -44,7 +44,7 @@ PostProcessor::PostProcessor(
 // DESTRUCTOR
 PostProcessor::~PostProcessor(){
     
-    for(const auto& [name, _tensor]: _postProcessTensorMap){
+    for(const auto& [name, _tensor]: m_postProcessTensorMap){
         delete[] _tensor.ptr;
     }
 }
@@ -52,7 +52,7 @@ PostProcessor::~PostProcessor(){
 
 EigenTensorViewSharedPtr<float, 4> PostProcessor::getTensorView4D(const std::string& tensorName){
     
-    if(!_postProcessTensorMap[tensorName].ptr){
+    if(!m_postProcessTensorMap[tensorName].ptr){
         throw std::invalid_argument("Cannot create 4D tensor from null pointer");
     }
 
@@ -60,10 +60,10 @@ EigenTensorViewSharedPtr<float, 4> PostProcessor::getTensorView4D(const std::str
 
     for(int i=0; i<4; i++){
         arrayDims[i] = static_cast<Eigen::Index>(
-            _postProcessTensorMap[tensorName].dims.d[i] >  0 ? _postProcessTensorMap[tensorName].dims.d[i] : 1);
+            m_postProcessTensorMap[tensorName].dims.d[i] >  0 ? m_postProcessTensorMap[tensorName].dims.d[i] : 1);
     }
 
-    return std::make_shared<EigenTensorView<float, 4>>(_postProcessTensorMap[tensorName].ptr, arrayDims);
+    return std::make_shared<EigenTensorView<float, 4>>(m_postProcessTensorMap[tensorName].ptr, arrayDims);
 }
 
 
@@ -71,7 +71,7 @@ EigenTensorViewSharedPtrMap<float, 4> PostProcessor::getTensorViewMap4D(){
 
     EigenTensorViewSharedPtrMap<float, 4> outputTensorViewMap;
 
-    for(const auto& [name, _tensor]: _postProcessTensorMap){
+    for(const auto& [name, _tensor]: m_postProcessTensorMap){
         outputTensorViewMap.emplace(name, getTensorView4D(name));
     }
 
@@ -103,7 +103,7 @@ void PostProcessor::postProcessOutputs(const TensorMap<cv::float16_t> inferenceT
         
         copyDataToFloat32(
             tensor.ptr,
-            _postProcessTensorMap[name].ptr,
+            m_postProcessTensorMap[name].ptr,
             tensor.numElements
         );
     }
@@ -162,7 +162,7 @@ void PostProcessor::postProcessOutputs(const TensorMap<cv::float16_t> inferenceT
     }
 }
 
-// auto as a return type cannot make a function return multiple types through multiple paths
+// auto as a return type cannot make a function return multiple utils through multiple paths
 // Eigen::Tensor should get its rank as a compile time const.
 
 // So, all CPU computations are to be done in float32

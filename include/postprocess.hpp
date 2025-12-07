@@ -1,11 +1,11 @@
 #pragma once
 
-#include "types/tensor_types.hpp"
-#include "types/eigentensor_types.hpp"
-#include "types/postprocess_types.hpp"
+#include "utils/tensor.hpp"
+#include "utils/eigentensor.hpp"
+#include "utils/output.hpp"
 #include "logger.hpp"
 #include <vector>
-#include "options.hpp"
+#include "utils/options.hpp"
 #include <opencv2/core.hpp>
 
 class PostProcessor{
@@ -13,8 +13,8 @@ class PostProcessor{
     public:
         
         PostProcessor():
-            _postProcessTensorMap(),
-            _resultsDir(){}
+            m_postProcessTensorMap(),
+            m_resultsDir(){}
 
         PostProcessor(
             const TensorMap<cv::float16_t>& inferenceTensorMap,
@@ -29,8 +29,8 @@ class PostProcessor{
 
     private:
         //
-        TensorMap<float> _postProcessTensorMap;
-        fs::path _resultsDir;
+        TensorMap<float> m_postProcessTensorMap;
+        fs::path m_resultsDir;
 };
 
 

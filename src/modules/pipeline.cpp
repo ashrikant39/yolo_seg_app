@@ -59,8 +59,8 @@ std::vector<char> readEngineFileToArray(const fs::path& fileName){
 
 size_t InferencePipeline::getNumElements(const char* tensorName){
 
-    nvinfer1::DataType tensorType = _engine->getTensorDataType(tensorName);
-    const nvinfer1::Dims& tensorDims = _engine->getTensorShape(tensorName);
+    nvinfer1::DataType tensorType = m_engine->getTensorDataType(tensorName);
+    const nvinfer1::Dims& tensorDims = m_engine->getTensorShape(tensorName);
 
     size_t numElements = std::accumulate(
         tensorDims.d, 
@@ -75,13 +75,13 @@ size_t InferencePipeline::getNumElements(const char* tensorName){
 
 std::vector<std::string> InferencePipeline::getTensorNames(nvinfer1::TensorIOMode mode){
     
-    int totalIOTensors = _engine->getNbIOTensors();
+    int totalIOTensors = m_engine->getNbIOTensors();
     std::vector<std::string> tensorNames;
     
     for(int i=0; i<totalIOTensors; i++){
-        std::string name = _engine->getIOTensorName(i);
+        std::string name = m_engine->getIOTensorName(i);
 
-        if(_engine->getTensorIOMode(name.c_str()) == mode){
+        if(m_engine->getTensorIOMode(name.c_str()) == mode){
             tensorNames.push_back(std::move(name));
         }
     }
@@ -92,24 +92,24 @@ std::vector<std::string> InferencePipeline::getTensorNames(nvinfer1::TensorIOMod
 
 bool InferencePipeline::createInferenceTensors(){
 
-    for(int32_t i=0; i<_engine->getNbIOTensors(); i++){
+    for(int32_t i=0; i<m_engine->getNbIOTensors(); i++){
         
-        const char* name = _engine->getIOTensorName(i);
+        const char* name = m_engine->getIOTensorName(i);
 
-        _DeviceTensorMap[name].trtDtype = _engine->getTensorDataType(name);
-        _DeviceTensorMap[name].numElements = getNumElements(name);
-        _DeviceTensorMap[name].dims = _engine->getTensorShape(name);
-        _DeviceTensorMap[name].mode = _engine->getTensorIOMode(name);
+        m_DeviceTensorMap[name].trtDtype = m_engine->getTensorDataType(name);
+        m_DeviceTensorMap[name].numElements = getNumElements(name);
+        m_DeviceTensorMap[name].dims = m_engine->getTensorShape(name);
+        m_DeviceTensorMap[name].mode = m_engine->getTensorIOMode(name);
         
-        size_t bytesPerElement = getElementSize(_DeviceTensorMap[name].trtDtype);
+        size_t bytesPerElement = getElementSize(m_DeviceTensorMap[name].trtDtype);
 
         cudaError_t error = cudaMalloc(
-            &_DeviceTensorMap[name].ptr,
-            _DeviceTensorMap[name].numElements * bytesPerElement
+            &m_DeviceTensorMap[name].ptr,
+            m_DeviceTensorMap[name].numElements * bytesPerElement
         );
 
         if(error != cudaSuccess){
-            _logger.logConcatMessage(
+            m_logger.logConcatMessage(
                 Severity::kINFO,
                 "CudaMalloc Failed for {",
                 name,
@@ -120,14 +120,14 @@ bool InferencePipeline::createInferenceTensors(){
             return false;
         }
 
-        if(_engine->getTensorIOMode(name) == nvinfer1::TensorIOMode::kOUTPUT){
+        if(m_engine->getTensorIOMode(name) == nvinfer1::TensorIOMode::kOUTPUT){
 
-            _outputTensorMap[name] = {
-                _DeviceTensorMap[name].trtDtype,
-                _DeviceTensorMap[name].numElements,
-                _DeviceTensorMap[name].dims,
-                _DeviceTensorMap[name].mode,
-                new cv::float16_t[_DeviceTensorMap[name].numElements]
+            m_outputTensorMap[name] = {
+                m_DeviceTensorMap[name].trtDtype,
+                m_DeviceTensorMap[name].numElements,
+                m_DeviceTensorMap[name].dims,
+                m_DeviceTensorMap[name].mode,
+                new cv::float16_t[m_DeviceTensorMap[name].numElements]
             };
         }
 
@@ -139,23 +139,23 @@ bool InferencePipeline::createInferenceTensors(){
 
 void InferencePipeline::logModelInfo(){
 
-    for(int idx=0; idx<_engine->getNbIOTensors(); idx++){
+    for(int idx=0; idx<m_engine->getNbIOTensors(); idx++){
 
-        const char* tensorName = _engine->getIOTensorName(idx);
-        _logger.logTensorDims(
+        const char* tensorName = m_engine->getIOTensorName(idx);
+        m_logger.logTensorDims(
             Severity::kINFO,
             tensorName,
-            _DeviceTensorMap[tensorName].dims
+            m_DeviceTensorMap[tensorName].dims
         );
     }
 
-    _logger.log(Severity::kINFO, "Logging Layers Info of first and last few layers.\n");
+    m_logger.log(Severity::kINFO, "Logging Layers Info of first and last few layers.\n");
 
-    std::unique_ptr<nvinfer1::IEngineInspector> engineInspector(_engine->createEngineInspector());
-    int numLayers = _engine->getNbLayers();
+    std::unique_ptr<nvinfer1::IEngineInspector> engineInspector(m_engine->createEngineInspector());
+    int numLayers = m_engine->getNbLayers();
     
     for(int layerIdx=0; layerIdx<5; layerIdx++){
-        _logger.logConcatMessage(
+        m_logger.logConcatMessage(
             Severity::kINFO,
             "Layer Index:",
             layerIdx,
@@ -167,7 +167,7 @@ void InferencePipeline::logModelInfo(){
     }
 
     for(int layerIdx=numLayers-5; layerIdx<numLayers; layerIdx++){
-        _logger.logConcatMessage(
+        m_logger.logConcatMessage(
             Severity::kINFO,
             "Layer Index:",
             layerIdx,
@@ -187,12 +187,12 @@ InferencePipeline::InferencePipeline(
     const fs::path& saveDirPath,
     bool logModelInformation
 ):
-    _logger(Logger(logFilePath, Severity::kINFO)),
-    _runtime(std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(_logger))){
+    m_logger(logFilePath, Severity::kINFO),
+    m_runtime(std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(m_logger))){
 
         // Check if runtime is set
-        if(!_runtime){
-            _logger.log(Severity::kERROR, "Failed to create TensorRT runtime.");
+        if(!m_runtime){
+            m_logger.log(Severity::kERROR, "Failed to create TensorRT runtime.");
             throw std::runtime_error("Failed to create TensorRT runtime.");
         }
         // Deserialize the model (in .engine file) and create an engine for running inference
@@ -201,12 +201,12 @@ InferencePipeline::InferencePipeline(
         std::vector<char> engineData = readEngineFileToArray(engineFilePath);
 
         // Deserialize the engineData to an Engine using the Runtime created
-        _engine = std::unique_ptr<nvinfer1::ICudaEngine>(
-            _runtime->deserializeCudaEngine(engineData.data(), engineData.size())
+        m_engine = std::unique_ptr<nvinfer1::ICudaEngine>(
+            m_runtime->deserializeCudaEngine(engineData.data(), engineData.size())
             );
         
-        if(!_engine){   
-            _logger.log(Severity::kERROR, "Failed to create TensorRT engine.");
+        if(!m_engine){   
+            m_logger.log(Severity::kERROR, "Failed to create TensorRT engine.");
             throw std::runtime_error("Failed to create TensorRT engine.");
         }
         
@@ -223,28 +223,28 @@ InferencePipeline::InferencePipeline(
         std::string inputName = getTensorNames(nvinfer1::TensorIOMode::kINPUT)[0];
         
         NVTX_RANGE("create_video");
-        _videoReader = std::make_unique<VideoFromDirectory>(
+        m_videoReader = std::make_unique<VideoFromDirectory>(
             videoDirPath,
-            _DeviceTensorMap[inputName].dims.d[0],
-            _DeviceTensorMap[inputName].dims.d[2],
-            _DeviceTensorMap[inputName].dims.d[3],
-            _logger
+            m_DeviceTensorMap[inputName].dims.d[0],
+            m_DeviceTensorMap[inputName].dims.d[2],
+            m_DeviceTensorMap[inputName].dims.d[3],
+            m_logger
         );
         NVTX_POP();
         
         NVTX_RANGE("create_post_processor");
-        _postProcessor = std::make_unique<PostProcessor>(_outputTensorMap, saveDirPath);
+        m_postProcessor = std::make_unique<PostProcessor>(m_outputTensorMap, saveDirPath);
         NVTX_POP();
 }
 
 // DESTRUCTOR
 InferencePipeline::~InferencePipeline(){
 
-    for(auto& [name, d_tensor]: _DeviceTensorMap){
+    for(auto& [name, d_tensor]: m_DeviceTensorMap){
         cudaFree(d_tensor.ptr);
  
-        if(_outputTensorMap.find(name) != _outputTensorMap.end()){
-            delete[] _outputTensorMap[name].ptr;
+        if(m_outputTensorMap.find(name) != m_outputTensorMap.end()){
+            delete[] m_outputTensorMap[name].ptr;
         }   
     }
 
@@ -255,10 +255,10 @@ bool InferencePipeline::runAsynchronousInference(const cv::Mat& preprocessedImag
     std::string inputName = getTensorNames(nvinfer1::TensorIOMode::kINPUT)[0];
     std::vector<std::string> outputNames = getTensorNames(nvinfer1::TensorIOMode::kOUTPUT);
 
-    std::unique_ptr<nvinfer1::IExecutionContext> context(_engine->createExecutionContext());
+    std::unique_ptr<nvinfer1::IExecutionContext> context(m_engine->createExecutionContext());
     
     NVTX_RANGE("AddressSetting");
-    for(const auto& [name, d_tensor] : _DeviceTensorMap){
+    for(const auto& [name, d_tensor] : m_DeviceTensorMap){
         
         bool assignFlag = context->setTensorAddress(name.c_str(), d_tensor.ptr);
 
@@ -277,13 +277,13 @@ bool InferencePipeline::runAsynchronousInference(const cv::Mat& preprocessedImag
         return false;
     }
 
-    size_t bytesPerElement = getElementSize(_DeviceTensorMap[inputName].trtDtype);
+    size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].trtDtype);
 
     NVTX_RANGE("HostToDevice");
     error = cudaMemcpyAsync(
-        _DeviceTensorMap[inputName].ptr, 
+        m_DeviceTensorMap[inputName].ptr, 
         preprocessedImages.ptr<cv::float16_t>(0), 
-        _DeviceTensorMap[inputName].numElements * bytesPerElement, 
+        m_DeviceTensorMap[inputName].numElements * bytesPerElement, 
         cudaMemcpyHostToDevice, 
         stream
     );
@@ -297,7 +297,7 @@ bool InferencePipeline::runAsynchronousInference(const cv::Mat& preprocessedImag
     NVTX_RANGE("EnqueueV3");
     if(!context->enqueueV3(stream)){
         std::cerr << "EnqueueV3 Failed: ";
-        _logger.log(Severity::kERROR, "EnqueueV3 Failed.");
+        m_logger.log(Severity::kERROR, "EnqueueV3 Failed.");
         return false;
     }
     NVTX_POP();
@@ -308,9 +308,9 @@ bool InferencePipeline::runAsynchronousInference(const cv::Mat& preprocessedImag
         const std::string& name = outputNames[i];
                 
         error = cudaMemcpyAsync(
-            _outputTensorMap[name].ptr,
-            _DeviceTensorMap[name].ptr,
-            _outputTensorMap[name].numElements * bytesPerElement, 
+            m_outputTensorMap[name].ptr,
+            m_DeviceTensorMap[name].ptr,
+            m_outputTensorMap[name].numElements * bytesPerElement, 
             cudaMemcpyDeviceToHost,
             stream
         );
@@ -340,18 +340,18 @@ bool InferencePipeline::runAsynchronousInference(const cv::Mat& preprocessedImag
 
 void InferencePipeline::runInferencePipeline(){
 
-    size_t totalBatches = _videoReader->getTotalBatches();
-    size_t totalImgs = _videoReader->getTotalImages();
+    size_t totalBatches = m_videoReader->getTotalBatches();
+    size_t totalImgs = m_videoReader->getTotalImages();
 
     auto beginCompute = std::chrono::high_resolution_clock::now();
 
     for(size_t batchIdx=0; batchIdx < totalBatches; batchIdx++){
 
         NVTX_RANGE("PreProcessBatch");
-        const auto& [imageData, imagePaths] = 
-                _videoReader->getBatchDataPreProcessed(
+        const auto& [inputShape, imageData, imagePaths] = 
+                m_videoReader->getBatchDataPreProcessed(
                     batchIdx,
-                    _logger,
+                    m_logger,
                     VideoOptions::NORM_FACTOR_ADD_TO_SCALED,
                     VideoOptions::NORM_FACTOR_SCALING_MUL
                 );            
@@ -364,21 +364,21 @@ void InferencePipeline::runInferencePipeline(){
         NVTX_POP();
 
         NVTX_RANGE("PostProcess");
-        _postProcessor->postProcessOutputs(_outputTensorMap, imagePaths, _logger);
+        m_postProcessor->postProcessOutputs(m_outputTensorMap, imagePaths, m_logger);
         NVTX_POP();
     }
 
     auto endCompute = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration<double>(endCompute - beginCompute).count();
         
-    _logger.logConcatMessage(
+    m_logger.logConcatMessage(
         Severity::kINFO,
         "Total Compute Time: ",
         duration,
         '\n'
     );
 
-    _logger.logConcatMessage(
+    m_logger.logConcatMessage(
         Severity::kINFO,
         "FPS: ",
         static_cast<double>(totalImgs) / duration,

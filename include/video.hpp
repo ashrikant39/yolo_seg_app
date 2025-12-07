@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <vector>
 #include "logger.hpp"
-#include "types/videoprocess_types.hpp"
+#include "utils/input.hpp"
 
 namespace fs = std::filesystem;
 
@@ -35,20 +35,8 @@ class VideoFromDirectory{
             double normFactorAddToScaled, 
             double normFactorScalingMul);
 
-        ~VideoFromDirectory() = default;
-
     private:
         std::vector<fs::path> _filesList;
         size_t _batchSize, _imgH, _imgW;
         ImageBatchData _batchData;
 };
-
-
-void preprocessImage(
-    const cv::Mat& img, 
-    cv::Mat& result, 
-    size_t imgH, 
-    size_t imgW, 
-    double normFactorAddToScaled, 
-    double normFactorScalingMul
-);

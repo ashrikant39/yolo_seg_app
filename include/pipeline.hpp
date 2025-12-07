@@ -4,7 +4,7 @@
 #include <vector>
 #include <opencv2/core.hpp>
 #include <filesystem>
-#include "types/tensor_types.hpp"
+#include "utils/tensor.hpp"
 #include "logger.hpp"
 #include "video.hpp"
 #include "postprocess.hpp"
@@ -15,8 +15,8 @@ using namespace std::chrono_literals;
 //  Must be kept alive throughout the program
 //  Allocates CPU and GPU memory for inference.
 
-class InferencePipeline
-{
+class InferencePipeline{
+    
     public:
 
         InferencePipeline(
@@ -43,13 +43,13 @@ class InferencePipeline
         // Engine has the lifecycle of an entire inference run.
         // Execution Context: contains all of the state associated with a particular invocation
 
-        Logger _logger; 
-        std::unique_ptr<nvinfer1::IRuntime> _runtime;
-        std::unique_ptr<nvinfer1::ICudaEngine> _engine;
-        TensorMap<cv::float16_t> _DeviceTensorMap, _outputTensorMap;
+        Logger m_logger; 
+        std::unique_ptr<nvinfer1::IRuntime> m_runtime;
+        std::unique_ptr<nvinfer1::ICudaEngine> m_engine;
+        TensorMap<cv::float16_t> m_DeviceTensorMap, m_outputTensorMap;
         nvinfer1::DataType _computeTypeInference;
-        std::unique_ptr<VideoFromDirectory> _videoReader;
-        std::unique_ptr<PostProcessor> _postProcessor;
+        std::unique_ptr<VideoFromDirectory> m_videoReader;
+        std::unique_ptr<PostProcessor> m_postProcessor;
 };
 
 

@@ -1,7 +1,7 @@
 #include "video.hpp"
 #include "options.hpp"
 #include "settings.hpp"
-#include "types/enums.hpp"
+#include "utils/enums.hpp"
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/core/cvdef.h>
@@ -18,20 +18,6 @@
 #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
 #define NVTX_POP()      do { nvtxRangePop(); } while (0)
 
-
-void preprocessImage(
-    const cv::Mat& img,
-    cv::Mat& result,
-    size_t imgH,
-    size_t imgW,
-    double normFactorAddToScaled,
-    double normFactorScalingMul){
-
-        cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-        cv::Mat resizedImage;
-        cv::resize(img, resizedImage, cv::Size(imgW, imgH));    
-        resizedImage.convertTo(result, CV_16F, normFactorScalingMul, normFactorAddToScaled);
-}
 
 // DEF-CONSTRUCTOR
 VideoFromDirectory::VideoFromDirectory():
@@ -98,37 +84,22 @@ const ImageBatchData& VideoFromDirectory::getBatchDataPreProcessed(
     int startIdx = batchIdx * _batchSize;
     int endIdx = std::min((batchIdx + 1)*_batchSize, totalImgs);
     
-    cv::Mat image, preProcessedImage;
     size_t totalElementsPerImage = _imgH*_imgW*3;
+    std::vector<cv::Mat> images;
+    images.reserve(_batchSize);
     
     try{
 
         for(int idx=startIdx; idx<startIdx+_batchSize; ++idx){
 
             if(idx < endIdx){
-                image = cv::imread(_filesList[idx], cv::IMREAD_COLOR);
+                cv::Mat image = cv::imread(_filesList[idx], cv::IMREAD_COLOR);
 
                 if(image.empty()){
                     std::cerr << "Could not read image: " << _filesList[idx] << '\n';
                 }
                 
-                preProcessedImage = cv::dnn::blobFromImage(
-                        image,
-                        VideoOptions::NORM_FACTOR_SCALING_MUL,
-                        cv::Size(_imgW, _imgH),
-                        cv::Scalar(),
-                        VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
-                        false,
-                        CV_32F
-                );
-
-                
-
-                std::memcpy(
-                        _batchData.images.ptr<cv::float16_t>(idx - startIdx),
-                        preProcessedImage.ptr<cv::float16_t>(0),
-                        totalElementsPerImage
-                        );
+                images.push_back(image);
             }
             
         }
@@ -139,6 +110,17 @@ const ImageBatchData& VideoFromDirectory::getBatchDataPreProcessed(
             batchIdx,
             '\n'
         );
+    
+        cv::dnn::blobFromImage(
+            images,
+            VideoOptions::NORM_FACTOR_SCALING_MUL,
+            cv::Size(_imgW, _imgH),
+            cv::Scalar(),
+            VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
+            false,
+            CV_32F
+        ).convertTo(_batchData.images, CV_16F);
+
         return _batchData;
     }
     

@@ -2,7 +2,7 @@
 
 #include <unsupported/Eigen/CXX11/Tensor>
 
-// Tensor View Types
+// Tensor View utils
 
 template<typename TensorType, int rank>
 using EigenTensorView = Eigen::TensorMap<Eigen::Tensor<TensorType, rank>>;
@@ -13,7 +13,7 @@ using EigenTensorViewSharedPtr = std::shared_ptr<EigenTensorView<TensorType, ran
 template<typename TensorType, int rank>
 using EigenTensorViewSharedPtrMap = std::unordered_map<std::string, EigenTensorViewSharedPtr<TensorType, rank>>;
 
-// Tensor Types
+// Tensor utils
 template <typename TensorType, int rank>
 using EigenTensor = Eigen::Tensor<TensorType, rank>;
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "types/enums.hpp"
+#include "utils/enums.hpp"
 
 
 struct InferenceEngineOptions{
