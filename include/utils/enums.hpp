@@ -16,5 +16,6 @@ enum class ComputeDataType : int{
 
 enum class InferenceMode : int{
     ASYNC       =   0,
-    SYNC        =   1
+    SYNC        =   1,
+    UNIFIED     =   2
 };

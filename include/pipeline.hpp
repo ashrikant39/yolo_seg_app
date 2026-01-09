@@ -4,7 +4,7 @@
 #include <vector>
 #include <opencv2/core.hpp>
 #include <filesystem>
-#include "utils/tensor.hpp"
+#include "utils/cudatensor.hpp"
 #include "logger.hpp"
 #include "video.hpp"
 #include "postprocess.hpp"
@@ -27,10 +27,8 @@ class InferencePipeline{
             bool logModelInformation
         );
 
-        ~InferencePipeline();
-
         bool createInferenceTensors();
-        bool runAsynchronousInference(const cv::Mat& preprocessedImages);
+        bool runInference();
         std::vector<std::string> getTensorNames(nvinfer1::TensorIOMode mode);
         size_t getNumElements(const char* tensorName);
         void logModelInfo();
@@ -46,9 +44,10 @@ class InferencePipeline{
         Logger m_logger; 
         std::unique_ptr<nvinfer1::IRuntime> m_runtime;
         std::unique_ptr<nvinfer1::ICudaEngine> m_engine;
-        TensorMap<cv::float16_t> m_DeviceTensorMap, m_outputTensorMap;
+        std::unique_ptr<nvinfer1::IExecutionContext> m_context;
+        CudaTensorMap<cv::float16_t> m_DeviceTensorMap;
         nvinfer1::DataType _computeTypeInference;
-        std::unique_ptr<VideoFromDirectory> m_videoReader;
+        std::unique_ptr<ImageBatchLoader> m_batchLoader;
         std::unique_ptr<PostProcessor> m_postProcessor;
 };
 
