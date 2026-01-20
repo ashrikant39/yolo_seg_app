@@ -5,7 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "options.hpp"
+#include "utils/options.hpp"
 #include <utility>
 
 using Severity = nvinfer1::ILogger::Severity;
@@ -28,41 +28,41 @@ class Logger : public nvinfer1::ILogger
 
         template <class ...Ts>
         void logConcatMessage(Severity severity, Ts&&... xs){
-            if(severity <= _loggerSeverity){
+            if(severity <= m_loggerSeverity){
                 if(severity == nvinfer1::ILogger::Severity::kINTERNAL_ERROR)
-                    _logStream << "[INTERNAL ERROR] ";
+                    m_logStream << "[INTERNAL ERROR] ";
 
                 else if(severity == nvinfer1::ILogger::Severity::kERROR)
-                    _logStream << "[ERROR] ";
+                    m_logStream << "[ERROR] ";
 
                 else if(severity == nvinfer1::ILogger::Severity::kWARNING)
-                    _logStream << "[WARNING] ";
+                    m_logStream << "[WARNING] ";
                 
                 else
-                    _logStream << "[INFO] ";
+                    m_logStream << "[INFO] ";
             }
 
-            (_logStream << ... << std::forward<Ts>(xs));
+            (m_logStream << ... << std::forward<Ts>(xs));
         }
 
         void logTensorDims(Severity Severity, const char* tensorName, const nvinfer1::Dims& tensorDims);
 
         // Get Logger Severity
         [[nodiscard]] Severity getLoggerSeverity(){
-            return _loggerSeverity;
+            return m_loggerSeverity;
         }
 
         [[nodiscard]] std::filesystem::path getLogFilePath(){
-            return _logPath;
+            return m_logPath;
         }
 
         // Destructor
         ~Logger();
     
     private:
-        Severity _loggerSeverity;
-        std::filesystem::path _logPath;
-        std::ofstream _logStream;
+        Severity m_loggerSeverity;
+        std::filesystem::path m_logPath;
+        std::ofstream m_logStream;
 
         void assignStream(std::ios_base::openmode mode);
 };

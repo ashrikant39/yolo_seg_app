@@ -1,7 +1,7 @@
 #include "video.hpp"
 #include "options.hpp"
 #include "settings.hpp"
-#include "types/enums.hpp"
+#include "utils/enums.hpp"
 #include <iostream>
 #include <opencv2/core.hpp>
 #include <opencv2/core/cvdef.h>
@@ -19,41 +19,28 @@
 #define NVTX_POP()      do { nvtxRangePop(); } while (0)
 
 
-void preprocessImage(
-    const cv::Mat& img,
-    cv::Mat& result,
-    size_t imgH,
-    size_t imgW,
-    double normFactorAddToScaled,
-    double normFactorScalingMul){
-
-        cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-        cv::Mat resizedImage;
-        cv::resize(img, resizedImage, cv::Size(imgW, imgH));    
-        resizedImage.convertTo(result, CV_16F, normFactorScalingMul, normFactorAddToScaled);
-}
-
 // DEF-CONSTRUCTOR
-VideoFromDirectory::VideoFromDirectory():
-    _filesList({}),
-    _batchSize(0),
-    _imgH(0),
-    _imgW(0),
-    _batchData(0, 0, 0, 0){
+ImageBatchLoader::ImageBatchLoader():
+    m_filesList({}),
+    m_batchSize(0),
+    m_imgH(0),
+    m_imgW(0),
+    m_batchData(0, 0, 0, 0){
     }
 
 // CONSTRUCTOR
-VideoFromDirectory::VideoFromDirectory(
+ImageBatchLoader::ImageBatchLoader(
     const fs::path& dirPath,
     size_t batchSize,
     size_t imgH,
     size_t imgW,
-    Logger& logger
+    Logger& logger,
+    cv::float16_t *ptr = nullptr
 ):
-    _batchSize(batchSize),
-    _imgH(imgH),
-    _imgW(imgW),
-    _batchData(batchSize, imgH, imgW, 3){
+    m_batchSize(batchSize),
+    m_imgH(imgH),
+    m_imgW(imgW),
+    m_batchData(batchSize, imgH, imgW, 3, ptr){
         
         assert(fs::is_directory(dirPath));
 
@@ -62,12 +49,12 @@ VideoFromDirectory::VideoFromDirectory(
         for(const auto& entry: fs::directory_iterator(dirPath)){
             if(
                 entry.is_regular_file() && (entry.path().extension() == ".png" || entry.path().extension() == ".jpg")){
-                _filesList.push_back(entry.path());
+                m_filesList.push_back(entry.path());
                 totalImages++;
             }
         }
 
-        std::sort(_filesList.begin(), _filesList.end());
+        std::sort(m_filesList.begin(), m_filesList.end());
 
         if(totalImages == 0){
             throw std::runtime_error("No regular files in: " + dirPath.string());
@@ -79,56 +66,41 @@ VideoFromDirectory::VideoFromDirectory(
                 "Number of files in the directory: ",
                 dirPath.c_str(),
                 " is: ",
-                _filesList.size(),
+                m_filesList.size(),
                 '\n'
             );
         }
     }
 
 
-const ImageBatchData& VideoFromDirectory::getBatchDataPreProcessed(
+void ImageBatchLoader::loadBatchDataPreProcessed(
     int batchIdx,
     Logger& logger,
     double normFactorAddToScaled,
     double normFactorScalingMul){
 
-    size_t totalImgs = _filesList.size();
-    assert(batchIdx*_batchSize < totalImgs);
+    size_t totalImgs = m_filesList.size();
+    assert(batchIdx * m_batchSize < totalImgs);
 
-    int startIdx = batchIdx * _batchSize;
-    int endIdx = std::min((batchIdx + 1)*_batchSize, totalImgs);
+    int startIdx = batchIdx * m_batchSize;
+    int endIdx = std::min((batchIdx + 1) * m_batchSize, totalImgs);
     
-    cv::Mat image, preProcessedImage;
-    size_t totalElementsPerImage = _imgH*_imgW*3;
+    size_t totalElementsPerImage = m_imgH * m_imgW * 3;
+    std::vector<cv::Mat> imageList;
+    imageList.reserve(m_batchSize);
     
     try{
 
-        for(int idx=startIdx; idx<startIdx+_batchSize; ++idx){
+        for(int idx = startIdx; idx < startIdx + m_batchSize; ++idx){
 
             if(idx < endIdx){
-                image = cv::imread(_filesList[idx], cv::IMREAD_COLOR);
+                cv::Mat image = cv::imread(m_filesList[idx], cv::IMREAD_COLOR);
 
                 if(image.empty()){
-                    std::cerr << "Could not read image: " << _filesList[idx] << '\n';
+                    std::cerr << "Could not read image: " << m_filesList[idx] << '\n';
                 }
                 
-                preProcessedImage = cv::dnn::blobFromImage(
-                        image,
-                        VideoOptions::NORM_FACTOR_SCALING_MUL,
-                        cv::Size(_imgW, _imgH),
-                        cv::Scalar(),
-                        VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
-                        false,
-                        CV_32F
-                );
-
-                
-
-                std::memcpy(
-                        _batchData.images.ptr<cv::float16_t>(idx - startIdx),
-                        preProcessedImage.ptr<cv::float16_t>(0),
-                        totalElementsPerImage
-                        );
+                imageList.push_back(image);
             }
             
         }
@@ -139,7 +111,17 @@ const ImageBatchData& VideoFromDirectory::getBatchDataPreProcessed(
             batchIdx,
             '\n'
         );
-        return _batchData;
+    
+        cv::dnn::blobFromImage(
+            imageList,
+            VideoOptions::NORM_FACTOR_SCALING_MUL,
+            cv::Size(m_imgW, m_imgH),
+            cv::Scalar(),
+            VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
+            false,
+            CV_32F
+        ).convertTo(m_batchData.images, CV_16F);
+
     }
     
     catch(const cv::Exception& e){

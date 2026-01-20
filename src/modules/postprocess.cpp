@@ -1,27 +1,6 @@
 #include "postprocess.hpp"
 #include "settings.hpp"
 
-void copyDataToFloat32(
-    cv::float16_t* sourceDataPtr, 
-    float* destDataPtr, 
-    size_t totalElements){ 
-
-        assert(reinterpret_cast<uintptr_t>(sourceDataPtr) % alignof(Eigen::half) == 0);
-
-        EigenTensorView<Eigen::half, 1> sourceData(
-            reinterpret_cast<Eigen::half*>(sourceDataPtr),
-            totalElements
-        );
-
-        EigenTensorView<float, 1> copiedData(
-            destDataPtr, 
-            totalElements
-        );
-
-        for(int i=0; i<totalElements; i++){
-            copiedData(i) = static_cast<float>(sourceData(i));
-        }
-}
 
 // CONSTRUCTOR
 PostProcessor::PostProcessor(
@@ -30,40 +9,30 @@ PostProcessor::PostProcessor(
 
     for(const auto& [name, tensor]: inferenceTensorMap){
         
-        _postProcessTensorMap[name] = {
-            tensor.trtDtype,
-            tensor.numElements,
-            tensor.dims,
-            tensor.mode,
-            new float[tensor.numElements]
+        m_postProcessTensorMap[name] = {
+            nvinfer1::DataType::kFLOAT,
+            tensor.getDims(),
+            nvinfer1::TensorIOMode::kOUTPUT
         };
-    }
-}
-
-
-// DESTRUCTOR
-PostProcessor::~PostProcessor(){
-    
-    for(const auto& [name, _tensor]: _postProcessTensorMap){
-        delete[] _tensor.ptr;
     }
 }
 
 
 EigenTensorViewSharedPtr<float, 4> PostProcessor::getTensorView4D(const std::string& tensorName){
     
-    if(!_postProcessTensorMap[tensorName].ptr){
+    if(!m_postProcessTensorMap[tensorName].ptr()){
         throw std::invalid_argument("Cannot create 4D tensor from null pointer");
     }
 
     DSizeIndices<4> arrayDims;
 
     for(int i=0; i<4; i++){
+        auto dims = m_postProcessTensorMap[tensorName].getDims();
         arrayDims[i] = static_cast<Eigen::Index>(
-            _postProcessTensorMap[tensorName].dims.d[i] >  0 ? _postProcessTensorMap[tensorName].dims.d[i] : 1);
+            dims.d[i] >  0 ? dims.d[i] : 1);
     }
 
-    return std::make_shared<EigenTensorView<float, 4>>(_postProcessTensorMap[tensorName].ptr, arrayDims);
+    return std::make_shared<EigenTensorView<float, 4>>(m_postProcessTensorMap[tensorName].ptr(), arrayDims);
 }
 
 
@@ -71,7 +40,7 @@ EigenTensorViewSharedPtrMap<float, 4> PostProcessor::getTensorViewMap4D(){
 
     EigenTensorViewSharedPtrMap<float, 4> outputTensorViewMap;
 
-    for(const auto& [name, _tensor]: _postProcessTensorMap){
+    for(const auto& [name, _tensor]: m_postProcessTensorMap){
         outputTensorViewMap.emplace(name, getTensorView4D(name));
     }
 
@@ -79,7 +48,10 @@ EigenTensorViewSharedPtrMap<float, 4> PostProcessor::getTensorViewMap4D(){
 }
 
 // function to save results to files
-void PostProcessor::postProcessOutputs(const TensorMap<cv::float16_t> inferenceTensorMap, const std::vector<fs::path>& fileNames, Logger& logger){
+void PostProcessor::postProcessOutputs(
+    CudaTensorMap<cv::float16_t>& inferenceTensorMap,
+    const std::vector<fs::path>& fileNames,
+    Logger& logger){
     /*
         name: images
             tensor: float16[16,3,512,1024]
@@ -99,12 +71,12 @@ void PostProcessor::postProcessOutputs(const TensorMap<cv::float16_t> inferenceT
                 cls score           -> output0[...,5] (Since only one class)
     */
 
-    for(const auto& [name, tensor]: inferenceTensorMap){
+    for(auto& [name, tensor]: inferenceTensorMap){
         
         copyDataToFloat32(
-            tensor.ptr,
-            _postProcessTensorMap[name].ptr,
-            tensor.numElements
+            tensor.ptr(),
+            m_postProcessTensorMap[name].ptr(),
+            tensor.getNumElements()
         );
     }
     
@@ -162,7 +134,7 @@ void PostProcessor::postProcessOutputs(const TensorMap<cv::float16_t> inferenceT
     }
 }
 
-// auto as a return type cannot make a function return multiple types through multiple paths
+// auto as a return type cannot make a function return multiple utils through multiple paths
 // Eigen::Tensor should get its rank as a compile time const.
 
 // So, all CPU computations are to be done in float32

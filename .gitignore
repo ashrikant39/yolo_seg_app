@@ -2,12 +2,10 @@
 assets/
 build/
 coc-settings.json
-**/*.txt
 **/*.log
 .cache/
 **/*.out
 **/*.log
-**/*.txt
 *.sh
 dumps/
 commands/

@@ -4,7 +4,7 @@
 #include <vector>
 #include <opencv2/core.hpp>
 #include <filesystem>
-#include "types/tensor_types.hpp"
+#include "utils/cudatensor.hpp"
 #include "logger.hpp"
 #include "video.hpp"
 #include "postprocess.hpp"
@@ -15,8 +15,8 @@ using namespace std::chrono_literals;
 //  Must be kept alive throughout the program
 //  Allocates CPU and GPU memory for inference.
 
-class InferencePipeline
-{
+class InferencePipeline{
+    
     public:
 
         InferencePipeline(
@@ -27,10 +27,8 @@ class InferencePipeline
             bool logModelInformation
         );
 
-        ~InferencePipeline();
-
         bool createInferenceTensors();
-        bool runAsynchronousInference(const cv::Mat& preprocessedImages);
+        bool runInference();
         std::vector<std::string> getTensorNames(nvinfer1::TensorIOMode mode);
         size_t getNumElements(const char* tensorName);
         void logModelInfo();
@@ -43,13 +41,14 @@ class InferencePipeline
         // Engine has the lifecycle of an entire inference run.
         // Execution Context: contains all of the state associated with a particular invocation
 
-        Logger _logger; 
-        std::unique_ptr<nvinfer1::IRuntime> _runtime;
-        std::unique_ptr<nvinfer1::ICudaEngine> _engine;
-        TensorMap<cv::float16_t> _DeviceTensorMap, _outputTensorMap;
+        Logger m_logger; 
+        std::unique_ptr<nvinfer1::IRuntime> m_runtime;
+        std::unique_ptr<nvinfer1::ICudaEngine> m_engine;
+        std::unique_ptr<nvinfer1::IExecutionContext> m_context;
+        CudaTensorMap<cv::float16_t> m_DeviceTensorMap;
         nvinfer1::DataType _computeTypeInference;
-        std::unique_ptr<VideoFromDirectory> _videoReader;
-        std::unique_ptr<PostProcessor> _postProcessor;
+        std::unique_ptr<ImageBatchLoader> m_batchLoader;
+        std::unique_ptr<PostProcessor> m_postProcessor;
 };
 
 
