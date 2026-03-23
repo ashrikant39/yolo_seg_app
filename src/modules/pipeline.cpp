@@ -1,4 +1,5 @@
 #include "pipeline.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -17,7 +18,7 @@
     #define NVTX_POP()      do { nvtxRangePop(); } while (0)
 #else
     #define NVTX_RANGE(name) do { } while(0)
-    #define NVTX_POP
+    #define NVTX_POP()      do { } while(0)
 #endif
 
 
@@ -207,7 +208,10 @@ InferencePipeline::InferencePipeline(
         NVTX_POP();
         
         NVTX_RANGE("create_post_processor");
-        m_postProcessor = std::make_unique<PostProcessor>(saveDirPath);
+        m_postProcessor = std::make_unique<PostProcessor>(
+            saveDirPath,
+            inputDims.d[3],
+            inputDims.d[2]);
         NVTX_POP();
         
         m_context = std::unique_ptr<nvinfer1::IExecutionContext>(m_engine->createExecutionContext());
@@ -276,12 +280,18 @@ void InferencePipeline::runInferencePipeline(){
 
     size_t totalBatches = m_batchLoader->getTotalBatches();
     size_t totalImgs = m_batchLoader->getTotalImages();
+    const size_t batchSize = m_batchLoader->getBatchSize();
+    const auto& allPaths = m_batchLoader->getFileNames();
 
     auto beginCompute = std::chrono::high_resolution_clock::now();
 
     for(size_t batchIdx=0; batchIdx < totalBatches; batchIdx++){
 
-        const auto& imagePaths = m_batchLoader->getFileNames(); 
+        const size_t startIdx = batchIdx * batchSize;
+        const size_t count = std::min(batchSize, totalImgs - startIdx);
+        std::vector<fs::path> batchPaths(
+            allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx),
+            allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx + count));
 
         NVTX_RANGE("PreProcessBatch");
 
@@ -299,7 +309,7 @@ void InferencePipeline::runInferencePipeline(){
         NVTX_POP();
 
         NVTX_RANGE("PostProcess");
-        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, imagePaths, m_logger);
+        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger);
         NVTX_POP();
     }
 

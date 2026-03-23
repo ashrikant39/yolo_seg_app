@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+#include <unordered_map>
 #include <unsupported/Eigen/CXX11/Tensor>
 
 // Tensor View utils

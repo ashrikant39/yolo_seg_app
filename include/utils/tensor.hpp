@@ -4,51 +4,10 @@
 #include <NvInfer.h>
 #include <string>
 #include <memory>
-#include <cuda_runtime_api.h>
 #include <numeric>
 #include <type_traits>
-
-#define CUDA_CHECK(call)                                                      \
-    do {                                                                      \
-        cudaError_t err = (call);                                             \
-        if (err != cudaSuccess) {                                             \
-            fprintf(stderr,                                                   \
-                    "[CUDA ERROR] %s:%d — %s\n",                              \
-                    __FILE__, __LINE__, cudaGetErrorString(err));             \
-            std::exit(EXIT_FAILURE);                                          \
-        }                                                                     \
-    } while (0)
-
-
-#define CUDA_WARN(call)                                                       \
-do {                                                                      \
-    cudaError_t err = (call);                                             \
-    if (err != cudaSuccess) {                                             \
-        fprintf(stderr,                                                   \
-                "[CUDA WARNING] %s:%d — %s\n",                            \
-                __FILE__, __LINE__, cudaGetErrorString(err));             \
-    }                                                                     \
-} while (0)
-
-
-#define CUDA_THROW(call)                                                      \
-do {                                                                      \
-    cudaError_t err = (call);                                             \
-    if (err != cudaSuccess) {                                             \
-        throw std::runtime_error(                                         \
-            std::string("[CUDA EXCEPTION] ") + cudaGetErrorString(err));  \
-    }                                                                     \
-} while (0)
-
-
-template <typename T>
-struct CudaDeleter {
-    void operator()(T* ptr) const noexcept {
-        if (ptr) {
-            CUDA_WARN(cudaFree(ptr));
-        }
-    }
-};
+#include "utils/cuda.hpp"
+#include <opencv2/core.hpp>
 
 
 template <typename T>
@@ -59,6 +18,12 @@ using CudaUniquePtrToArray = std::unique_ptr<T[], CudaDeleter<T>>;
 
 
 template <typename T, template <typename> class PtrType>
+/**
+ * @brief Allocate contiguous tensor storage using either host or CUDA managed memory.
+ *
+ * For `CudaUniquePtrToArray`, this allocates via `cudaMallocManaged`.
+ * For host pointers, this allocates via `std::make_unique<T[]>`.
+ */
 PtrType<T[]> makeUniquePtr(size_t numElements){
 
     if constexpr (std::is_same_v<PtrType<T[]>, CudaUniquePtrToArray<T>>) {
@@ -79,6 +44,12 @@ class Tensor{
     public:
         Tensor() = delete;
 
+        /**
+         * @brief Construct a tensor wrapper around contiguous storage.
+         * @param trtDtype TensorRT dtype metadata.
+         * @param dims TensorRT dimensions.
+         * @param mode TensorRT IO mode (input/output).
+         */
         Tensor(nvinfer1::DataType trtDtype, const nvinfer1::Dims& dims, nvinfer1::TensorIOMode mode):
             m_trtDtype(trtDtype),
             m_dims(dims),
@@ -91,6 +62,9 @@ class Tensor{
             )),
             m_unqPtr(makeUniquePtr<T, PtrType>(m_numElements)){}
 
+        /**
+         * @brief Total flattened element count derived from `dims`.
+         */
         size_t getNumElements() const {
             return m_numElements;
         }
@@ -103,15 +77,21 @@ class Tensor{
             return m_dims;
         }
 
-        nvinfer::TensorIOMode getIOMode() const {
+        nvinfer1::TensorIOMode getIOMode() const {
             return m_mode;
         }
 
 
+        /**
+         * @brief Mutable raw pointer to underlying contiguous storage.
+         */
         T* ptr(){
             return m_unqPtr.get();
         }
 
+        /**
+         * @brief Const raw pointer to underlying contiguous storage.
+         */
         const T* ptr() const {
             return m_unqPtr.get();
         }
@@ -132,7 +112,20 @@ template <typename T>
 using CudaTensorMap = std::unordered_map<std::string, Tensor<T, CudaUniquePtrToArray>>;
 
 
+/** Copy half-precision buffer to float32 (CPU-side buffers). */
+inline void copyDataToFloat32(const cv::float16_t* src, float* dst, size_t numElements) {
+    for (size_t i = 0; i < numElements; ++i) {
+        dst[i] = static_cast<float>(src[i]);
+    }
+}
+
+
 template <template <typename> class PtrType>
+/**
+ * @brief Convert an FP16 tensor to FP32 into a temporary output tensor.
+ *
+ * @note Current implementation writes to a local temporary and does not return it.
+ */
 void castHalfToSinglePrecision(const Tensor<cv::float16_t, PtrType>& input){
 
     Tensor<float, PtrType> output = {

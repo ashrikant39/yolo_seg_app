@@ -1,5 +1,5 @@
 #include "video.hpp"
-#include "options.hpp"
+#include "utils/options.hpp"
 #include "settings.hpp"
 #include "utils/enums.hpp"
 #include <iostream>
@@ -91,16 +91,20 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
     
     try{
 
-        for(int idx = startIdx; idx < startIdx + m_batchSize; ++idx){
+        for(int idx = startIdx; idx < startIdx + static_cast<int>(m_batchSize); ++idx){
 
             if(idx < endIdx){
                 cv::Mat image = cv::imread(m_filesList[idx], cv::IMREAD_COLOR);
 
                 if(image.empty()){
                     std::cerr << "Could not read image: " << m_filesList[idx] << '\n';
+                    image = cv::Mat::zeros(static_cast<int>(m_imgH), static_cast<int>(m_imgW), CV_8UC3);
                 }
                 
                 imageList.push_back(image);
+            } else {
+                // Pad partial last batch so blob matches engine batch size
+                imageList.push_back(cv::Mat::zeros(static_cast<int>(m_imgH), static_cast<int>(m_imgW), CV_8UC3));
             }
             
         }

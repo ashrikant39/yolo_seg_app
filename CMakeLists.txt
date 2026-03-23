@@ -76,3 +76,49 @@ set(CMAKE_BUILD_RPATH "${CMAKE_BUILD_RPATH};${TENSORRT_LIB_DIRS}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 # (optional) keep rpath on install; adjust to your deployment policy
 set(CMAKE_INSTALL_RPATH "${TENSORRT_LIB_DIRS}")
+
+# =========================
+# Component smoke tests
+# =========================
+
+enable_testing()
+
+if(TEST_SOURCES)
+    foreach(test_src ${TEST_SOURCES})
+        get_filename_component(test_name "${test_src}" NAME_WE)
+
+        if (test_name STREQUAL "char")
+            continue()
+        endif()
+
+        # Build tests by compiling the same module sources as the main app
+        # (but without `src/main.cpp`, since `MODULES` excludes it).
+        add_executable(${test_name} ${test_src} ${MODULES})
+
+        set_target_properties(${test_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        )
+
+        target_link_libraries(${test_name}
+            ${NVINFER_LIB}
+            ${NVINFER_PLUGIN_LIB}
+            ${NVONNXPARSER_LIB}
+            ${OpenCV_LIBS}
+            ${CUDA_LIBRARIES}
+            Eigen3::Eigen
+            cxxopts::cxxopts
+        )
+
+        # NVTX linking for the test targets
+        if (TARGET CUDA::nvToolsExt)
+            target_link_libraries(${test_name} CUDA::nvToolsExt)
+        elseif (TARGET CUDA::nvtx3)
+            target_link_libraries(${test_name} CUDA::nvtx3)
+        else()
+            target_link_libraries(${test_name} nvToolsExt)
+            target_include_directories(${test_name} PRIVATE "${CUDAToolkit_INCLUDE_DIRS}")
+        endif()
+
+        add_test(NAME ${test_name} COMMAND ${CMAKE_BINARY_DIR}/bin/${test_name})
+    endforeach()
+endif()

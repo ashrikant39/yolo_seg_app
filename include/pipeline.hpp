@@ -4,21 +4,36 @@
 #include <vector>
 #include <opencv2/core.hpp>
 #include <filesystem>
-#include "utils/cudatensor.hpp"
+#include "utils/tensor.hpp"
 #include "logger.hpp"
 #include "video.hpp"
 #include "postprocess.hpp"
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
-//  Wrapper class for running the inference
-//  Must be kept alive throughout the program
-//  Allocates CPU and GPU memory for inference.
 
+/**
+ * @brief High-level TensorRT inference pipeline.
+ *
+ * This class owns the TensorRT runtime/engine/context and orchestrates:
+ * 1) input loading/preprocessing,
+ * 2) GPU inference execution,
+ * 3) output post-processing and result writing.
+ *
+ * The object is intended to live for the full duration of an inference session.
+ */
 class InferencePipeline{
     
     public:
 
+        /**
+         * @brief Construct a pipeline from a serialized TensorRT engine file.
+         * @param engineFilePath Path to `.engine` file.
+         * @param logFilePath Path to the log file used by Logger.
+         * @param videoDirPath Directory containing input images.
+         * @param saveDirPath Directory where predictions/masks are written.
+         * @param logModelInformation If true, logs tensor/layer metadata.
+         */
         InferencePipeline(
             const fs::path& engineFilePath, 
             const fs::path& logFilePath,
@@ -27,11 +42,31 @@ class InferencePipeline{
             bool logModelInformation
         );
 
+        /**
+         * @brief Allocate and register TensorRT IO tensors.
+         * @return true on success.
+         */
         bool createInferenceTensors();
+        /**
+         * @brief Run one inference iteration on already prepared input buffers.
+         * @return true if enqueue + synchronization succeeded.
+         */
         bool runInference();
+        /**
+         * @brief Get tensor names by IO mode (input/output).
+         */
         std::vector<std::string> getTensorNames(nvinfer1::TensorIOMode mode);
+        /**
+         * @brief Compute total number of elements for an engine tensor.
+         */
         size_t getNumElements(const char* tensorName);
+        /**
+         * @brief Log selected model tensor/layer metadata.
+         */
         void logModelInfo();
+        /**
+         * @brief Run the full pipeline over all image batches.
+         */
         void runInferencePipeline();
 
     private:
@@ -52,6 +87,11 @@ class InferencePipeline{
 };
 
 
-// Load serialized engine file to an std::vector
+/**
+ * @brief Load a serialized TensorRT engine file into a byte buffer.
+ */
 std::vector<char> readEngineFileToArray(const fs::path& fileName);
+/**
+ * @brief Get element size in bytes for a TensorRT data type.
+ */
 size_t getElementSize(nvinfer1::DataType dtype);
