@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <opencv2/dnn.hpp>
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 #include <vector>
 #include "settings.hpp"
 
@@ -35,7 +35,7 @@ ImageBatchLoader::ImageBatchLoader(
     size_t imgH,
     size_t imgW,
     Logger& logger,
-    cv::float16_t *ptr = nullptr
+    cv::float16_t *ptr
 ):
     m_batchSize(batchSize),
     m_imgH(imgH),

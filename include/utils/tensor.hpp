@@ -11,7 +11,7 @@
 
 
 template <typename T>
-using UniquePtrToArray = std::unique_ptr<T[], std::default_delete<T[]>>;
+using UniquePtrToArray = std::unique_ptr<T[]>;
 
 template <typename T>
 using CudaUniquePtrToArray = std::unique_ptr<T[], CudaDeleter<T>>;

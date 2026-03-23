@@ -10,7 +10,7 @@
 #include <opencv2/dnn/dnn.hpp>
 #include <cstring>
 #include <chrono>
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 #include <assert.h>
 
 #ifndef NDEBUG
