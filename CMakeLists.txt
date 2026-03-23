@@ -8,29 +8,34 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-# === Find CUDA ===
-find_package(CUDA REQUIRED)
-include_directories(${CUDA_INCLUDE_DIRS})
+# === Find CUDA Toolkit ===
+find_package(CUDAToolkit REQUIRED)
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
 
-# === TensorRT include path ===
-# Allow TRT_ROOT to be passed in or fallback to environment variable
-if(NOT DEFINED TRT_ROOT)
-    if(DEFINED ENV{TRT_ROOT})
-        set(TRT_ROOT $ENV{TRT_ROOT})
-    else()
-        message(FATAL_ERROR "TRT_ROOT is not set! Please specify -DTRT_ROOT=/path/to/TensorRT or export TRT_ROOT.")
-    endif()
-endif()
-include_directories("${TRT_ROOT}/include")
+# === TensorRT include/library discovery ===
+# Ubuntu apt installs generally place headers/libs under /usr/include and /usr/lib/*.
+# This project intentionally assumes standard system locations on Ubuntu.
+
+set(TENSORRT_INCLUDE_HINTS
+    /usr/include
+    /usr/include/x86_64-linux-gnu
+)
+set(TENSORRT_LIBRARY_HINTS
+    /usr/lib
+    /usr/lib/x86_64-linux-gnu
+    /usr/lib/aarch64-linux-gnu
+)
+
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS ${TENSORRT_INCLUDE_HINTS} REQUIRED)
+include_directories(${TENSORRT_INCLUDE_DIR})
 
 # === TensorRT libraries ===
-find_library(NVINFER_LIB nvinfer HINTS "$ENV{TRT_ROOT}/lib" "$ENV{TRT_ROOT}/lib64")
-find_library(NVINFER_PLUGIN_LIB nvinfer_plugin HINTS "$ENV{TRT_ROOT}/lib" "$ENV{TRT_ROOT}/lib64")
-find_library(NVONNXPARSER_LIB nvonnxparser HINTS "$ENV{TRT_ROOT}/lib" "$ENV{TRT_ROOT}/lib64")
+find_library(NVINFER_LIB nvinfer HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
+find_library(NVINFER_PLUGIN_LIB nvinfer_plugin HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
+find_library(NVONNXPARSER_LIB nvonnxparser HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
 
 # === Eigen Library ===
-set(Eigen3_DIR "$ENV{Eigen_CMAKE_DIR}")
-find_package (Eigen3 3.3 REQUIRED)
+find_package(Eigen3 3.3 REQUIRED)
 
 
 # === cxxopts Header Only Library ===
@@ -54,7 +59,7 @@ ${NVINFER_LIB}
 ${NVINFER_PLUGIN_LIB} 
 ${NVONNXPARSER_LIB} 
 ${OpenCV_LIBS} 
-${CUDA_LIBRARIES} 
+CUDA::cudart
 Eigen3::Eigen 
 cxxopts::cxxopts
 )
@@ -70,8 +75,11 @@ else()
 endif()
 
 # --- RPATH so binaries find TRT/CUDA without LD_LIBRARY_PATH tweaks (optional but handy) ---
-# Add TRT lib dirs to build and install rpath
-set(TENSORRT_LIB_DIRS "${TRT_ROOT}/lib;${TRT_ROOT}/lib64")
+# Add TRT lib dirs discovered by find_library to build/install rpath.
+get_filename_component(NVINFER_LIB_DIR "${NVINFER_LIB}" DIRECTORY)
+get_filename_component(NVINFER_PLUGIN_LIB_DIR "${NVINFER_PLUGIN_LIB}" DIRECTORY)
+get_filename_component(NVONNXPARSER_LIB_DIR "${NVONNXPARSER_LIB}" DIRECTORY)
+set(TENSORRT_LIB_DIRS "${NVINFER_LIB_DIR};${NVINFER_PLUGIN_LIB_DIR};${NVONNXPARSER_LIB_DIR}")
 set(CMAKE_BUILD_RPATH "${CMAKE_BUILD_RPATH};${TENSORRT_LIB_DIRS}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 # (optional) keep rpath on install; adjust to your deployment policy
@@ -104,7 +112,7 @@ if(TEST_SOURCES)
             ${NVINFER_PLUGIN_LIB}
             ${NVONNXPARSER_LIB}
             ${OpenCV_LIBS}
-            ${CUDA_LIBRARIES}
+            CUDA::cudart
             Eigen3::Eigen
             cxxopts::cxxopts
         )

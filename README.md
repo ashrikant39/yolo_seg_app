@@ -22,8 +22,9 @@ For each input image, the post-processor writes (to `--saveDirPath` / `saveDirPa
 - `<image_stem>_seg_vis.png`: visualization overlay of predicted masks
 - `<image_stem>_det<i>_mask.png`: raw instance masks for each selected detection `i` (after NMS)
 
-## Environment variables (required)
+## Environment variables
 
+No environment variables are required for a standard Ubuntu apt-based setup.
 See: [`docs/ENV_VARS.md`](docs/ENV_VARS.md)
 
 ## Post-processing assumptions
@@ -38,11 +39,36 @@ You need:
 
 - C++17 toolchain
 - CMake
-- OpenCV (built/installed such that CMake can find it)
-- Eigen (CMake config available via `Eigen_CMAKE_DIR`)
-- TensorRT installed (and accessible via `TRT_ROOT`)
-- CUDA toolkit installed (CMake needs `CUDA_TOOLKIT_ROOT_DIR`)
+- OpenCV development package
+- Eigen development package
+- TensorRT 10.x + CUDA toolkit
 - `cxxopts` available to CMake (the project expects a CMake package target `cxxopts::cxxopts`)
+
+### Ubuntu 22.04 installation commands
+
+The following commands match your TensorRT 10.0.0 + CUDA 12.4 setup:
+
+```bash
+sudo apt-get update
+
+sudo apt-get install -y libopencv-dev
+
+sudo dpkg -i nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4_1.0-1_amd64.deb
+
+sudo cp /var/nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4/nv-tensorrt-local-2B368663-keyring.gpg /usr/share/keyrings/
+
+sudo apt-get update
+
+sudo apt-get install -y tensorrt libnvinfer-dev libnvinfer-plugin-dev libnvonnxparsers-dev libnvinfer-bin
+
+sudo apt-get install -y libeigen3-dev
+```
+
+Optional (if CMake cannot find cxxopts package target):
+
+```bash
+sudo apt-get install -y libcxxopts-dev
+```
 
 ### Build (CMake)
 
@@ -54,13 +80,12 @@ cd build
 
 cmake \
   -DCMAKE_BUILD_TYPE=Debug \
-  -DTRT_ROOT=/path/to/TensorRT \
-  -DEigen_CMAKE_DIR=/path/to/eigen/cmake/config \
-  -DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda \
   ..
 
 cmake --build . -j
 ```
+
+The default CMake configuration assumes standard Ubuntu library/include locations (`/usr/include`, `/usr/lib/*`) and does not require extra environment variables.
 
 ## Running (CLI)
 
