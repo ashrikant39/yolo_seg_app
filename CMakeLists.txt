@@ -34,8 +34,6 @@ find_library(NVINFER_LIB nvinfer HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
 find_library(NVINFER_PLUGIN_LIB nvinfer_plugin HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
 find_library(NVONNXPARSER_LIB nvonnxparser HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
 
-# === Eigen Library ===
-find_package(Eigen3 3.3 REQUIRED)
 
 
 # === cxxopts Header Only Library ===
@@ -60,7 +58,6 @@ ${NVINFER_PLUGIN_LIB}
 ${NVONNXPARSER_LIB} 
 ${OpenCV_LIBS} 
 CUDA::cudart
-Eigen3::Eigen 
 cxxopts::cxxopts
 )
 
@@ -113,7 +110,6 @@ if(TEST_SOURCES)
             ${NVONNXPARSER_LIB}
             ${OpenCV_LIBS}
             CUDA::cudart
-            Eigen3::Eigen
             cxxopts::cxxopts
         )
 

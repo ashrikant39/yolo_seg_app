@@ -24,12 +24,12 @@ template <typename T, template <typename> class PtrType>
  * For `CudaUniquePtrToArray`, this allocates via `cudaMallocManaged`.
  * For host pointers, this allocates via `std::make_unique<T[]>`.
  */
-PtrType<T[]> makeUniquePtr(size_t numElements){
+PtrType<T> makeUniquePtr(size_t numElements){
 
-    if constexpr (std::is_same_v<PtrType<T[]>, CudaUniquePtrToArray<T>>) {
-        T* ptr = nullptr;
+    if constexpr (std::is_same_v<PtrType<T>, CudaUniquePtrToArray<T>>) {
+        void *ptr = nullptr;
         CUDA_THROW(cudaMallocManaged(&ptr, sizeof(T) * numElements));
-        return PtrType<T[]>(ptr);
+        return PtrType<T>(static_cast<T*>(ptr));
     }
 
     else {
@@ -42,7 +42,9 @@ template <typename T, template <typename> class PtrType>
 class Tensor{
 
     public:
-        Tensor() = delete;
+
+        // Default constructor
+        Tensor(){}
 
         /**
          * @brief Construct a tensor wrapper around contiguous storage.
@@ -101,7 +103,7 @@ class Tensor{
         size_t m_numElements;
         nvinfer1::Dims m_dims;
         nvinfer1::TensorIOMode m_mode;
-        PtrType<T[]> m_unqPtr;
+        PtrType<T> m_unqPtr;
 };
 
 

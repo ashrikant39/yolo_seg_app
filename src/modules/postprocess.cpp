@@ -19,12 +19,19 @@ inline float sigmoid(float x) {
     return 1.f / (1.f + std::exp(-std::max(-50.f, std::min(50.f, x))));
 }
 
-/** Linear index for [batch][d1][d2][d3] with dims [B, D1, D2, D3]. */
-inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3) {
+/** Linear index for [batch][i1][i2][i3] with dims [B, D1, D2, D3]. */
+inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3){
     return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2 * D3) +
            static_cast<size_t>(i1) * static_cast<size_t>(D2 * D3) +
            static_cast<size_t>(i2) * static_cast<size_t>(D3) +
            static_cast<size_t>(i3);
+}
+
+/** Linear index for [batch][i1][i2] with dims [B, D1, D2]. */
+inline size_t idx3(int b, int i1, int i2, int D1, int D2){
+    return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2) +
+           static_cast<size_t>(i1) * static_cast<size_t>(D2) +
+           static_cast<size_t>(i2);
 }
 
 cv::Mat computeInstanceMask(
@@ -61,36 +68,6 @@ PostProcessor::PostProcessor(
       m_modelInputH(modelInputHeight) {
 }
 
-EigenTensorViewSharedPtr<float, 4> PostProcessor::getTensorView4D(const std::string& tensorName) {
-
-    if (!m_postProcessTensorMap[tensorName].ptr()) {
-        throw std::invalid_argument("Cannot create 4D tensor from null pointer");
-    }
-
-    DSizeIndices<4> arrayDims;
-    const auto dims = m_postProcessTensorMap[tensorName].getDims();
-
-    for (int i = 0; i < 4; ++i) {
-        if (i < dims.nbDims) {
-            arrayDims[i] = static_cast<Eigen::Index>(dims.d[i] > 0 ? dims.d[i] : 1);
-        } else {
-            arrayDims[i] = 1;
-        }
-    }
-
-    return std::make_shared<EigenTensorView<float, 4>>(m_postProcessTensorMap[tensorName].ptr(), arrayDims);
-}
-
-EigenTensorViewSharedPtrMap<float, 4> PostProcessor::getTensorViewMap4D() {
-
-    EigenTensorViewSharedPtrMap<float, 4> outputTensorViewMap;
-
-    for (const auto& [name, _tensor] : m_postProcessTensorMap) {
-        outputTensorViewMap.emplace(name, getTensorView4D(name));
-    }
-
-    return outputTensorViewMap;
-}
 
 void PostProcessor::postProcessOutputs(
     CudaTensorMap<cv::float16_t>& inferenceTensorMap,
@@ -105,13 +82,14 @@ void PostProcessor::postProcessOutputs(
         for (const auto& [name, tensor] : inferenceTensorMap) {
             if (tensor.getIOMode() != nvinfer1::TensorIOMode::kOUTPUT) {
                 continue;
-            }
+            }            
             m_postProcessTensorMap.emplace(
                 name,
                 Tensor<float, UniquePtrToArray>(
                     nvinfer1::DataType::kFLOAT,
                     tensor.getDims(),
-                    nvinfer1::TensorIOMode::kOUTPUT));
+                    nvinfer1::TensorIOMode::kOUTPUT)
+            );
         }
     }
 
@@ -138,30 +116,15 @@ void PostProcessor::postProcessOutputs(
     }
 
     // Use Eigen views (slice/chip) for readability when decoding boxes/scores/mask coeffs.
-    auto outputTensors = getTensorViewMap4D();
-    auto outputCoeffs = outputTensors[boxKey];   // expected rank-4: [B, N, C, 1]
-    auto prototypeMasks = outputTensors[protoKey]; // expected rank-4: [B, nm, H, W]
+    const nvinfer1::Dims boxDims = m_postProcessTensorMap[boxKey].getDims();  // [B, NObjects, Box+Feature+Cls], Box+Feature+Cls = nCoeffs
+    const nvinfer1::Dims protoDims = m_postProcessTensorMap[protoKey].getDims(); // [B, nm, H, W] , nm = Feature 
 
-    const auto dims0 = outputCoeffs->dimensions();  // [B, N, C, T]
-    const auto dims1 = prototypeMasks->dimensions(); // [B, nm, H, W]
-
-    const int batchSize = static_cast<int>(dims0[0]);
-    const int nBoxes = static_cast<int>(dims0[1]);
-    const int nCoeffs = static_cast<int>(dims0[2]);
-    const int tailDim = static_cast<int>(dims0[3]);
-
-    if (tailDim != 1) {
-        logger.logConcatMessage(
-            Severity::kERROR,
-            "Unexpected box tensor layout: expected last dimension == 1, got ",
-            tailDim,
-            ".\n");
-        return;
-    }
-
-    const int nm = static_cast<int>(dims1[1]);
-    const int maskH = static_cast<int>(dims1[2]);
-    const int maskW = static_cast<int>(dims1[3]);
+    const int batchSize = static_cast<int>(boxDims.d[0]);
+    const int nBoxes = static_cast<int>(boxDims.d[1]);
+    const int nCoeffs = static_cast<int>(boxDims.d[2]);
+    const int nm = static_cast<int>(protoDims.d[1]);
+    const int maskH = static_cast<int>(protoDims.d[2]);
+    const int maskW = static_cast<int>(protoDims.d[3]);
 
     const int nc = PostProcessingOptions::NUM_CLASSES;
     const int maskStart = YoloSegDecodeSettings::MASK_COEFF_START;
@@ -185,6 +148,7 @@ void PostProcessor::postProcessOutputs(
     fs::create_directories(m_resultsDir);
 
     const float* protoData = m_postProcessTensorMap[protoKey].ptr();
+    const float* boxData = m_postProcessTensorMap[boxKey].ptr();
 
     for (int b = 0; b < batchSize; ++b) {
         if (b >= static_cast<int>(batchFileNames.size())) {
@@ -193,54 +157,39 @@ void PostProcessor::postProcessOutputs(
 
         // outputCoeffs: [B, Nboxes, NCoeffs, 1]
         // batchCoeffs2: [Nboxes, NCoeffs]
-        auto batchCoeffs3 = outputCoeffs->chip(b, 0);   // rank-3
-        auto batchCoeffs2 = batchCoeffs3.chip(2, 0);   // remove trailing dim=1 -> rank-2
+        // auto batchCoeffs3 = outputCoeffs->chip(b, 0);   // rank-3
+        // auto batchCoeffs2 = batchCoeffs3.chip(2, 0);   // remove trailing dim=1 -> rank-2
 
         // First 4 channels are box params.
         // boxesXYWH: [Nboxes, 4]
-        auto boxesXYWH = batchCoeffs2.slice(
-            Eigen::DSizes<Eigen::Index, 2>{0, 0},
-            Eigen::DSizes<Eigen::Index, 2>{nBoxes, 4});
+        // auto boxesXYWH = batchCoeffs2.slice(
+        //     Eigen::DSizes<Eigen::Index, 2>{0, 0},
+        //     Eigen::DSizes<Eigen::Index, 2>{nBoxes, 4});
 
         // Score tensors: created lazily depending on layout.
         const bool hasObjAndCls = (maskStart == 4 + 1 + nc);
         const bool hasClsOnly = (maskStart == 4 + nc);
 
-        Eigen::Tensor<float, 2> objSliceT; // materialized via eval() when needed
-        Eigen::Tensor<float, 2> clsSliceT; // materialized via eval()
+        // Eigen::Tensor<float, 2> objSliceT; // materialized via eval() when needed
+        // Eigen::Tensor<float, 2> clsSliceT; // materialized via eval()
 
         int clsCount = 0;
-        if (hasObjAndCls) {
+
+        if (hasObjAndCls){
             clsCount = nc;
-            objSliceT = batchCoeffs2.slice(
-                Eigen::DSizes<Eigen::Index, 2>{0, 4},
-                Eigen::DSizes<Eigen::Index, 2>{nBoxes, 1}).eval();
-            clsSliceT = batchCoeffs2.slice(
-                Eigen::DSizes<Eigen::Index, 2>{0, 5},
-                Eigen::DSizes<Eigen::Index, 2>{nBoxes, nc}).eval();
-        } else if (hasClsOnly) {
+        }
+        else if (hasClsOnly){
             clsCount = nc;
-            clsSliceT = batchCoeffs2.slice(
-                Eigen::DSizes<Eigen::Index, 2>{0, 4},
-                Eigen::DSizes<Eigen::Index, 2>{nBoxes, nc}).eval();
-        } else {
+        }
+        else{
             // Heuristic: objectness at 4, classes from 5 to maskStart.
             clsCount = std::min(nc, std::max(0, maskStart - 5));
-            if (clsCount > 0) {
-                objSliceT = batchCoeffs2.slice(
-                    Eigen::DSizes<Eigen::Index, 2>{0, 4},
-                    Eigen::DSizes<Eigen::Index, 2>{nBoxes, 1}).eval();
-                clsSliceT = batchCoeffs2.slice(
-                    Eigen::DSizes<Eigen::Index, 2>{0, 5},
-                    Eigen::DSizes<Eigen::Index, 2>{nBoxes, clsCount}).eval();
-            } else {
-                clsCount = 0;
-            }
         }
 
-        std::vector<cv::Rect2f> candBoxes;
+        std::vector<cv::Rect2d> candBoxes;
         std::vector<float> candScores;
         std::vector<int> candOrigRow;
+
         candBoxes.reserve(static_cast<size_t>(nBoxes));
         candScores.reserve(static_cast<size_t>(nBoxes));
         candOrigRow.reserve(static_cast<size_t>(nBoxes));
@@ -248,22 +197,29 @@ void PostProcessor::postProcessOutputs(
         for (int i = 0; i < nBoxes; ++i) {
             // Decode box geometry from boxesXYWH.
             // Model outputs are assumed to be in pixel space of the preprocessed input.
-            const float cx = boxesXYWH(i, 0);
-            const float cy = boxesXYWH(i, 1);
-            const float w = boxesXYWH(i, 2);
-            const float h = boxesXYWH(i, 3);
+            const float *boxStart = boxData + idx3(b, i, 0, nBoxes, nCoeffs);
+            const float *clsStart = boxData + idx3(b, i, 5, nBoxes, nCoeffs);
 
-            const float x1 = cx - 0.5f * w;
-            const float y1 = cy - 0.5f * h;
-            const float bw = std::max(0.f, w);
-            const float bh = std::max(0.f, h);
-            candBoxes.emplace_back(x1, y1, bw, bh);
+            size_t objIdx = idx3(b, i, 4, nBoxes, nCoeffs);
+            const float objectness = boxData[objIdx];
+            
+            // OpenCV NMS requires boxes to be of double or int. 
+            const double cx = boxStart[0];
+            const double cy = boxStart[1];
+            const double w = boxStart[2];
+            const double h = boxStart[3];
+
+            const double x1 = cx - 0.5 * w;
+            const double y1 = cy - 0.5 * h;
+            const double bw = std::max(0., w);
+            const double bh = std::max(0., h);
 
             // Decode confidence and (optional) class via sigmoid logits.
             float best = 0.f;
             int bestId = 0;
+
             for (int c = 0; c < clsCount; ++c) {
-                const float s = sigmoid(clsSliceT(i, c));
+                const float s = sigmoid(clsStart[c]);
                 if (s > best) {
                     best = s;
                     bestId = c;
@@ -272,17 +228,14 @@ void PostProcessor::postProcessOutputs(
 
             float conf = best;
             if (hasObjAndCls || (!hasClsOnly && clsCount > 0)) {
-                conf = sigmoid(objSliceT(i, 0)) * best;
+                conf = sigmoid(objectness) * best;
             }
 
-            if (conf < PostProcessingOptions::NMS_CONF_THRESH) {
-                // Remove the just-pushed box by swapping with last.
-                candBoxes.pop_back();
-                continue;
+            if (conf >= PostProcessingOptions::NMS_CONF_THRESH) {
+                candBoxes.emplace_back(x1, y1, bw, bh);
+                candOrigRow.push_back(i);
+                candScores.push_back(conf);
             }
-
-            candOrigRow.push_back(i);
-            candScores.push_back(conf);
         }
 
         if (candBoxes.empty()) {
@@ -290,6 +243,7 @@ void PostProcessor::postProcessOutputs(
             continue;
         }
 
+        // Applying non-maximal suppression
         std::vector<int> nmsIndices;
         cv::dnn::NMSBoxes(
             candBoxes,
@@ -313,11 +267,11 @@ void PostProcessor::postProcessOutputs(
 
             const int origRow = candOrigRow[static_cast<size_t>(k)];
 
-            // Read mask coefficients using Eigen slicing view.
-            // mcoef: [nm]
             std::vector<float> mcoef(static_cast<size_t>(nm));
+
             for (int j = 0; j < nm; ++j) {
-                mcoef[static_cast<size_t>(j)] = batchCoeffs2(origRow, maskStart + j);
+                size_t m_idx = idx3(b, origRow, maskStart + j, nBoxes, nCoeffs);
+                mcoef[static_cast<size_t>(j)] = boxData[m_idx];
             }
 
             const size_t protoOff = idx4(b, 0, 0, 0, nm, maskH, maskW);

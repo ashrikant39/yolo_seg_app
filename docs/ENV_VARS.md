@@ -6,7 +6,6 @@ If you install dependencies from apt as documented in `README.md`, CMake discove
 
 - OpenCV from standard system include/lib locations
 - TensorRT libraries (`nvinfer`, `nvinfer_plugin`, `nvonnxparser`) from `/usr/lib/*`
-- Eigen from system package config
 - CUDA toolkit via `find_package(CUDAToolkit)`
 
 ## NVTX / profiling note

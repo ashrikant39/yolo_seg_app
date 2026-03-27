@@ -242,7 +242,13 @@ bool InferencePipeline::runInference(){
     size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].getDtype());
     size_t numInputElements = m_DeviceTensorMap[inputName].getNumElements();
 
-    cudaMemPrefetchAsync(m_DeviceTensorMap[inputName].ptr(), bytesPerElement * numInputElements, 0, stream);
+    cudaMemPrefetchAsync(
+        m_DeviceTensorMap[inputName].ptr(),
+        bytesPerElement * numInputElements,
+        {cudaMemLocationType::cudaMemLocationTypeDevice, 0},
+        0,
+        stream
+    );
 
     NVTX_RANGE("EnqueueV3");
     if(!m_context->enqueueV3(stream)){
@@ -258,7 +264,13 @@ bool InferencePipeline::runInference(){
         return false;
     }
 
-    cudaMemPrefetchAsync(m_DeviceTensorMap[inputName].ptr(), bytesPerElement * numInputElements, cudaCpuDeviceId, stream);
+    cudaMemPrefetchAsync(
+        m_DeviceTensorMap[inputName].ptr(),
+        bytesPerElement * numInputElements,
+        {cudaMemLocationType::cudaMemLocationTypeHost, 0},
+        0,
+        stream);
+
     error = cudaStreamSynchronize(stream);
     if(error != cudaSuccess){
         std::cerr << "Stream Synchronization Failed." << std::endl;

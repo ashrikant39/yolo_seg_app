@@ -40,7 +40,6 @@ You need:
 - C++17 toolchain
 - CMake
 - OpenCV development package
-- Eigen development package
 - TensorRT 10.x + CUDA toolkit
 - `cxxopts` available to CMake (the project expects a CMake package target `cxxopts::cxxopts`)
 
@@ -61,12 +60,6 @@ sudo apt-get update
 
 sudo apt-get install -y tensorrt libnvinfer-dev libnvinfer-plugin-dev libnvonnxparsers-dev libnvinfer-bin
 
-sudo apt-get install -y libeigen3-dev
-```
-
-Optional (if CMake cannot find cxxopts package target):
-
-```bash
 sudo apt-get install -y libcxxopts-dev
 ```
 

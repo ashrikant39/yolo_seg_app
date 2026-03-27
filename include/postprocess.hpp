@@ -1,8 +1,6 @@
 #pragma once
 
 #include "utils/tensor.hpp"
-#include "utils/eigentensor.hpp"
-#include "utils/output.hpp"
 #include "logger.hpp"
 #include <vector>
 #include <filesystem>
@@ -36,20 +34,6 @@ class PostProcessor{
             int modelInputHeight
         );
 
-        /**
-         * @brief Create a 4D Eigen tensor view over an internal FP32 tensor by name.
-         */
-        EigenTensorViewSharedPtr<float, 4> getTensorView4D(const std::string& tensorName);
-        /**
-         * @brief Create 4D Eigen tensor views for all internal FP32 postprocess tensors.
-         */
-        EigenTensorViewSharedPtrMap<float, 4> getTensorViewMap4D();
-        /**
-         * @brief Decode model outputs and write post-processed artifacts.
-         * @param inferenceTensorMap TensorRT output tensors (FP16, unified memory).
-         * @param batchFileNames Input file names corresponding to the current batch.
-         * @param logger Logger for warnings/errors.
-         */
         void postProcessOutputs(
             CudaTensorMap<cv::float16_t>& inferenceTensorMap,
             const std::vector<fs::path>& batchFileNames,
@@ -61,7 +45,3 @@ class PostProcessor{
         int m_modelInputW{0};
         int m_modelInputH{0};
 };
-
-// TensorViewSharedPtr<float, 4> getOutputTensorViewFromMemory4D(const std::string& outputName);
-// TensorViewSharedPtrMap<float, 4> getOutputTensorViewMap();
-// void postProcessOutputs(const fs::path& saveDir, const std::vector<fs::path>& imagePaths);
