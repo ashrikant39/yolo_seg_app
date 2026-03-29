@@ -16,25 +16,30 @@ using UniquePtrToArray = std::unique_ptr<T[]>;
 template <typename T>
 using CudaUniquePtrToArray = std::unique_ptr<T[], CudaDeleter<T>>;
 
+template <template <typename> class PtrType>
+struct PtrFactory;
 
-template <typename T, template <typename> class PtrType>
-/**
- * @brief Allocate contiguous tensor storage using either host or CUDA managed memory.
- *
- * For `CudaUniquePtrToArray`, this allocates via `cudaMallocManaged`.
- * For host pointers, this allocates via `std::make_unique<T[]>`.
- */
-PtrType<T> makeUniquePtr(size_t numElements){
-
-    if constexpr (std::is_same_v<PtrType<T>, CudaUniquePtrToArray<T>>) {
-        void *ptr = nullptr;
-        CUDA_THROW(cudaMallocManaged(&ptr, sizeof(T) * numElements));
-        return PtrType<T>(static_cast<T*>(ptr));
-    }
-
-    else {
+template <>
+struct PtrFactory<UniquePtrToArray> {
+    template <typename T>
+    static UniquePtrToArray<T> make(std::size_t numElements) {
         return std::make_unique<T[]>(numElements);
     }
+};
+
+template <>
+struct PtrFactory<CudaUniquePtrToArray> {
+    template <typename T>
+    static CudaUniquePtrToArray<T> make(std::size_t numElements) {
+        void* ptr = nullptr;
+        CUDA_THROW(cudaMallocManaged(&ptr, sizeof(T) * numElements));
+        return CudaUniquePtrToArray<T>(static_cast<T*>(ptr));
+    }
+};
+
+template <typename T, template <typename> class PtrType>
+PtrType<T> makeUniquePtr(std::size_t numElements) {
+    return PtrFactory<PtrType>::template make<T>(numElements);
 }
 
 

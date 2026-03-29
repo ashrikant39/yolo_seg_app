@@ -52,7 +52,7 @@ sudo apt-get update
 
 sudo apt-get install -y libopencv-dev
 
-sudo dpkg -i nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4_1.0-1_amd64.deb
+sudo dpkg -i assets/nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4_1.0-1_amd64.deb
 
 sudo cp /var/nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4/nv-tensorrt-local-2B368663-keyring.gpg /usr/share/keyrings/
 
