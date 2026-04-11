@@ -1,5 +1,5 @@
 #include "video.hpp"
-#include "options.hpp"
+#include "utils/options.hpp"
 #include "settings.hpp"
 #include "utils/enums.hpp"
 #include <iostream>
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <cstring>
 #include <opencv2/dnn.hpp>
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 #include <vector>
 #include "settings.hpp"
 
@@ -35,7 +35,7 @@ ImageBatchLoader::ImageBatchLoader(
     size_t imgH,
     size_t imgW,
     Logger& logger,
-    cv::float16_t *ptr = nullptr
+    cv::float16_t *ptr
 ):
     m_batchSize(batchSize),
     m_imgH(imgH),
@@ -73,7 +73,7 @@ ImageBatchLoader::ImageBatchLoader(
     }
 
 
-void ImageBatchLoader::loadBatchDataPreProcessed(
+bool ImageBatchLoader::loadBatchDataPreProcessed(
     int batchIdx,
     Logger& logger,
     double normFactorAddToScaled,
@@ -85,22 +85,25 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
     int startIdx = batchIdx * m_batchSize;
     int endIdx = std::min((batchIdx + 1) * m_batchSize, totalImgs);
     
-    size_t totalElementsPerImage = m_imgH * m_imgW * 3;
     std::vector<cv::Mat> imageList;
     imageList.reserve(m_batchSize);
-    
+
     try{
 
-        for(int idx = startIdx; idx < startIdx + m_batchSize; ++idx){
+        for(int idx = startIdx; idx < startIdx + static_cast<int>(m_batchSize); ++idx){
 
             if(idx < endIdx){
                 cv::Mat image = cv::imread(m_filesList[idx], cv::IMREAD_COLOR);
 
                 if(image.empty()){
                     std::cerr << "Could not read image: " << m_filesList[idx] << '\n';
+                    image = cv::Mat::zeros(static_cast<int>(m_imgH), static_cast<int>(m_imgW), CV_8UC3);
                 }
                 
                 imageList.push_back(image);
+            } else {
+                // Pad partial last batch so blob matches engine batch size
+                imageList.push_back(cv::Mat::zeros(static_cast<int>(m_imgH), static_cast<int>(m_imgW), CV_8UC3));
             }
             
         }
@@ -111,17 +114,16 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
             batchIdx,
             '\n'
         );
-    
-        cv::dnn::blobFromImage(
+
+        cv::dnn::blobFromImages(
             imageList,
             VideoOptions::NORM_FACTOR_SCALING_MUL,
             cv::Size(m_imgW, m_imgH),
             cv::Scalar(),
-            VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
+            VideoSettings::CHANNEL_ORDER != ChannelOrderMode::RGB,
             false,
             CV_32F
         ).convertTo(m_batchData.images, CV_16F);
-
     }
     
     catch(const cv::Exception& e){
@@ -144,4 +146,6 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
         );
         throw e;
     }
+
+    return true;
 }

@@ -16,10 +16,12 @@ struct PostProcessingOptions{
     static constexpr float NMS_CONF_THRESH = 0.25f;
     static constexpr float NMS_IOU_THRESH = 0.45f;
     static constexpr int NMS_MAX_DET = 300;
+    static constexpr int NUM_CLASS_ID_DIMS = 1;
+    static constexpr float MASK_THRESH = 0.5f;
 };
 
 
 struct VideoOptions{
     static constexpr double NORM_FACTOR_ADD_TO_SCALED = 0.0;
-    static constexpr double NORM_FACTOR_SCALING_MUL = 1.0;
+    static constexpr double NORM_FACTOR_SCALING_MUL = 1.0/255.0;
 };

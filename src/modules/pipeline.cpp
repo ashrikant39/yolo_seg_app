@@ -1,4 +1,5 @@
 #include "pipeline.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -9,7 +10,7 @@
 #include <opencv2/dnn/dnn.hpp>
 #include <cstring>
 #include <chrono>
-#include <nvToolsExt.h>
+#include <nvtx3/nvToolsExt.h>
 #include <assert.h>
 
 #ifndef NDEBUG
@@ -17,26 +18,9 @@
     #define NVTX_POP()      do { nvtxRangePop(); } while (0)
 #else
     #define NVTX_RANGE(name) do { } while(0)
-    #define NVTX_POP
+    #define NVTX_POP()      do { } while(0)
 #endif
 
-
-size_t getElementSize(nvinfer1::DataType dtype){
-
-    switch (dtype) {
-        case nvinfer1::DataType::kFLOAT: 
-            return 4;
-        case nvinfer1::DataType::kHALF: 
-            return 2;
-        case nvinfer1::DataType::kBF16: 
-            return 2;
-        case nvinfer1::DataType::kINT8: 
-            return 1;
-        case nvinfer1::DataType::kINT32: 
-            return 4;
-        default: throw std::runtime_error("Unknown data type");
-    }
-}
 
 std::vector<char> readEngineFileToArray(const fs::path& fileName){
 
@@ -95,13 +79,11 @@ bool InferencePipeline::createInferenceTensors(){
     for(int32_t i=0; i<m_engine->getNbIOTensors(); i++){
         
         const char* name = m_engine->getIOTensorName(i);
-
         m_DeviceTensorMap[name] = {
             m_engine->getTensorDataType(name),
             m_engine->getTensorShape(name),
             m_engine->getTensorIOMode(name)
         };
-
     }
 
     return true;
@@ -182,8 +164,12 @@ InferencePipeline::InferencePipeline(
         }
         
         NVTX_RANGE("create_tensors");
-        if(!createInferenceTensors()){
-            throw std::runtime_error("Failed to allocate IO memory");
+        try{
+            if(!createInferenceTensors()) {
+                std::cout << "Failed to allocate IO memory" ; 
+            }
+        } catch (const std::exception& e) {
+            std::cout << e.what();
         }
         NVTX_POP();
 
@@ -202,19 +188,22 @@ InferencePipeline::InferencePipeline(
             inputDims.d[2],
             inputDims.d[3],
             m_logger,
-            m_DeviceTensorMap[inputName].ptr()
+            m_DeviceTensorMap[inputName].ptr<cv::float16_t>()
         );
         NVTX_POP();
         
         NVTX_RANGE("create_post_processor");
-        m_postProcessor = std::make_unique<PostProcessor>(saveDirPath);
+        m_postProcessor = std::make_unique<PostProcessor>(
+            saveDirPath,
+            inputDims.d[3],
+            inputDims.d[2]);
         NVTX_POP();
         
         m_context = std::unique_ptr<nvinfer1::IExecutionContext>(m_engine->createExecutionContext());
 
         NVTX_RANGE("AddressSetting");
         for(auto& [name, d_tensor] : m_DeviceTensorMap){
-            if(!m_context->setTensorAddress(name.c_str(), d_tensor.ptr())){
+            if(!m_context->setTensorAddress(name.c_str(), d_tensor.rawPtr())){
                 std::cerr << "Failed to set tensor Address for {" << name << "}.";
             }
         }
@@ -238,7 +227,13 @@ bool InferencePipeline::runInference(){
     size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].getDtype());
     size_t numInputElements = m_DeviceTensorMap[inputName].getNumElements();
 
-    cudaMemPrefetchAsync(m_DeviceTensorMap[inputName].ptr(), bytesPerElement * numInputElements, 0, stream);
+    cudaMemPrefetchAsync(
+        m_DeviceTensorMap[inputName].rawPtr(),
+        bytesPerElement * numInputElements,
+        {cudaMemLocationType::cudaMemLocationTypeDevice, 0},
+        0,
+        stream
+    );
 
     NVTX_RANGE("EnqueueV3");
     if(!m_context->enqueueV3(stream)){
@@ -254,7 +249,13 @@ bool InferencePipeline::runInference(){
         return false;
     }
 
-    cudaMemPrefetchAsync(m_DeviceTensorMap[inputName].ptr(), bytesPerElement * numInputElements, cudaCpuDeviceId, stream);
+    cudaMemPrefetchAsync(
+        m_DeviceTensorMap[inputName].rawPtr(),
+        bytesPerElement * numInputElements,
+        {cudaMemLocationType::cudaMemLocationTypeHost, 0},
+        0,
+        stream);
+
     error = cudaStreamSynchronize(stream);
     if(error != cudaSuccess){
         std::cerr << "Stream Synchronization Failed." << std::endl;
@@ -267,7 +268,7 @@ bool InferencePipeline::runInference(){
         std::cerr << "Stream Destruction Failed." << std::endl;
         return false;
     }
-
+    
     return true;
 }
 
@@ -276,35 +277,46 @@ void InferencePipeline::runInferencePipeline(){
 
     size_t totalBatches = m_batchLoader->getTotalBatches();
     size_t totalImgs = m_batchLoader->getTotalImages();
+    const size_t batchSize = m_batchLoader->getBatchSize();
+    const auto& allPaths = m_batchLoader->getFileNames();
 
     auto beginCompute = std::chrono::high_resolution_clock::now();
 
-    for(size_t batchIdx=0; batchIdx < totalBatches; batchIdx++){
+    for(size_t batchIdx=0; batchIdx < totalBatches; batchIdx++) {
 
-        const auto& imagePaths = m_batchLoader->getFileNames(); 
+        const size_t startIdx = batchIdx * batchSize;
+        const size_t count = std::min(batchSize, totalImgs - startIdx);
+        std::vector<fs::path> batchPaths(
+            allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx),
+            allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx + count));
 
         NVTX_RANGE("PreProcessBatch");
+        
+        m_logger.log(Severity::kINFO, "Batch Loading");
 
-        m_batchLoader->loadBatchDataPreProcessed(
+        if (!m_batchLoader->loadBatchDataPreProcessed(
             batchIdx,
             m_logger,
             VideoOptions::NORM_FACTOR_ADD_TO_SCALED,
-            VideoOptions::NORM_FACTOR_SCALING_MUL);            
+            VideoOptions::NORM_FACTOR_SCALING_MUL)
+        ) {
+            std::cerr << "Batch Loading Failed for batch: " << batchIdx << std::endl;
+        }
         NVTX_POP();
         
         NVTX_RANGE("Inference");
         if(!runInference()){
-            std::cerr << "Inference Failed" << std::endl;
+            std::cerr << "Inference Failed for batch: " << batchIdx << std::endl;
         }
         NVTX_POP();
 
         NVTX_RANGE("PostProcess");
-        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, imagePaths, m_logger);
+        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger);
         NVTX_POP();
     }
 
     auto endCompute = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration<double>(endCompute - beginCompute).count();
+    auto duration = std::chrono::duration<double>(endCompute - beginCompute).count();
         
     m_logger.logConcatMessage(
         Severity::kINFO,

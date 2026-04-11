@@ -8,29 +8,32 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-# === Find CUDA ===
-find_package(CUDA REQUIRED)
-include_directories(${CUDA_INCLUDE_DIRS})
+# === Find CUDA Toolkit ===
+find_package(CUDAToolkit REQUIRED)
+include_directories(${CUDAToolkit_INCLUDE_DIRS})
 
-# === TensorRT include path ===
-# Allow TRT_ROOT to be passed in or fallback to environment variable
-if(NOT DEFINED TRT_ROOT)
-    if(DEFINED ENV{TRT_ROOT})
-        set(TRT_ROOT $ENV{TRT_ROOT})
-    else()
-        message(FATAL_ERROR "TRT_ROOT is not set! Please specify -DTRT_ROOT=/path/to/TensorRT or export TRT_ROOT.")
-    endif()
-endif()
-include_directories("${TRT_ROOT}/include")
+# === TensorRT include/library discovery ===
+# Ubuntu apt installs generally place headers/libs under /usr/include and /usr/lib/*.
+# This project intentionally assumes standard system locations on Ubuntu.
+
+set(TENSORRT_INCLUDE_HINTS
+    /usr/include
+    /usr/include/x86_64-linux-gnu
+)
+set(TENSORRT_LIBRARY_HINTS
+    /usr/lib
+    /usr/lib/x86_64-linux-gnu
+    /usr/lib/aarch64-linux-gnu
+)
+
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h HINTS ${TENSORRT_INCLUDE_HINTS} REQUIRED)
+include_directories(${TENSORRT_INCLUDE_DIR})
 
 # === TensorRT libraries ===
-find_library(NVINFER_LIB nvinfer HINTS "$ENV{TRT_ROOT}/lib" "$ENV{TRT_ROOT}/lib64")
-find_library(NVINFER_PLUGIN_LIB nvinfer_plugin HINTS "$ENV{TRT_ROOT}/lib" "$ENV{TRT_ROOT}/lib64")
-find_library(NVONNXPARSER_LIB nvonnxparser HINTS "$ENV{TRT_ROOT}/lib" "$ENV{TRT_ROOT}/lib64")
+find_library(NVINFER_LIB nvinfer HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
+find_library(NVINFER_PLUGIN_LIB nvinfer_plugin HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
+find_library(NVONNXPARSER_LIB nvonnxparser HINTS ${TENSORRT_LIBRARY_HINTS} REQUIRED)
 
-# === Eigen Library ===
-set(Eigen3_DIR "$ENV{Eigen_CMAKE_DIR}")
-find_package (Eigen3 3.3 REQUIRED)
 
 
 # === cxxopts Header Only Library ===
@@ -54,8 +57,7 @@ ${NVINFER_LIB}
 ${NVINFER_PLUGIN_LIB} 
 ${NVONNXPARSER_LIB} 
 ${OpenCV_LIBS} 
-${CUDA_LIBRARIES} 
-Eigen3::Eigen 
+CUDA::cudart
 cxxopts::cxxopts
 )
 
@@ -70,9 +72,57 @@ else()
 endif()
 
 # --- RPATH so binaries find TRT/CUDA without LD_LIBRARY_PATH tweaks (optional but handy) ---
-# Add TRT lib dirs to build and install rpath
-set(TENSORRT_LIB_DIRS "${TRT_ROOT}/lib;${TRT_ROOT}/lib64")
+# Add TRT lib dirs discovered by find_library to build/install rpath.
+get_filename_component(NVINFER_LIB_DIR "${NVINFER_LIB}" DIRECTORY)
+get_filename_component(NVINFER_PLUGIN_LIB_DIR "${NVINFER_PLUGIN_LIB}" DIRECTORY)
+get_filename_component(NVONNXPARSER_LIB_DIR "${NVONNXPARSER_LIB}" DIRECTORY)
+set(TENSORRT_LIB_DIRS "${NVINFER_LIB_DIR};${NVINFER_PLUGIN_LIB_DIR};${NVONNXPARSER_LIB_DIR}")
 set(CMAKE_BUILD_RPATH "${CMAKE_BUILD_RPATH};${TENSORRT_LIB_DIRS}")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 # (optional) keep rpath on install; adjust to your deployment policy
 set(CMAKE_INSTALL_RPATH "${TENSORRT_LIB_DIRS}")
+
+# =========================
+# Component smoke tests
+# =========================
+
+enable_testing()
+
+if(TEST_SOURCES)
+    foreach(test_src ${TEST_SOURCES})
+        get_filename_component(test_name "${test_src}" NAME_WE)
+
+        if (test_name STREQUAL "char")
+            continue()
+        endif()
+
+        # Build tests by compiling the same module sources as the main app
+        # (but without `src/main.cpp`, since `MODULES` excludes it).
+        add_executable(${test_name} ${test_src} ${MODULES})
+
+        set_target_properties(${test_name} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        )
+
+        target_link_libraries(${test_name}
+            ${NVINFER_LIB}
+            ${NVINFER_PLUGIN_LIB}
+            ${NVONNXPARSER_LIB}
+            ${OpenCV_LIBS}
+            CUDA::cudart
+            cxxopts::cxxopts
+        )
+
+        # NVTX linking for the test targets
+        if (TARGET CUDA::nvToolsExt)
+            target_link_libraries(${test_name} CUDA::nvToolsExt)
+        elseif (TARGET CUDA::nvtx3)
+            target_link_libraries(${test_name} CUDA::nvtx3)
+        else()
+            target_link_libraries(${test_name} nvToolsExt)
+            target_include_directories(${test_name} PRIVATE "${CUDAToolkit_INCLUDE_DIRS}")
+        endif()
+
+        add_test(NAME ${test_name} COMMAND ${CMAKE_BINARY_DIR}/bin/${test_name})
+    endforeach()
+endif()

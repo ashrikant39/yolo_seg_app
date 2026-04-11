@@ -8,7 +8,7 @@ void Logger::assignStream(std::ios_base::openmode mode){
     if(m_logStream.is_open()){
         std::cout<<"Logging to file: "<<m_logPath<<"\n";
     }else{
-        throw std::runtime_error("Failes to open file: " + m_logPath.string());
+        throw std::runtime_error("Failed to open file: " + m_logPath.string());
     }
 }
 
