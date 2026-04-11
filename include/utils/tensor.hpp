@@ -8,7 +8,7 @@
 #include <type_traits>
 #include "utils/cuda.hpp"
 #include <opencv2/core.hpp>
-
+#include <logger.hpp>
 
 template <typename T>
 using UniquePtrToArray = std::unique_ptr<T[]>;
@@ -62,12 +62,13 @@ class Tensor{
             m_dims(dims),
             m_mode(mode),
             m_numElements(std::accumulate(
-                m_dims.d, 
-                m_dims.d + m_dims.nbDims, 
+                dims.d, 
+                dims.d + dims.nbDims, 
                 static_cast<size_t>(1),
                 std::multiplies<>()
-            )),
-            m_unqPtr(makeUniquePtr<T, PtrType>(m_numElements)){}
+            )) {
+                m_unqPtr = makeUniquePtr<T, PtrType>(m_numElements);
+            }
 
         /**
          * @brief Total flattened element count derived from `dims`.
@@ -121,8 +122,9 @@ using CudaTensorMap = std::unordered_map<std::string, Tensor<T, CudaUniquePtrToA
 
 /** Copy half-precision buffer to float32 (CPU-side buffers). */
 inline void copyDataToFloat32(const cv::float16_t* src, float* dst, size_t numElements) {
+    
     for (size_t i = 0; i < numElements; ++i) {
-        dst[i] = static_cast<float>(src[i]);
+        dst[i] = static_cast<float>(src[i]);    
     }
 }
 
@@ -149,4 +151,23 @@ void castHalfToSinglePrecision(const Tensor<cv::float16_t, PtrType>& input){
         dst[i] = static_cast<float>(src[i]);
     }
 
+}
+
+inline float sigmoid(float x) {
+    return 1.f / (1.f + std::exp(-std::max(-50.f, std::min(50.f, x))));
+}
+
+/** Linear index for [batch][i1][i2][i3] with dims [B, D1, D2, D3]. */
+inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3){
+    return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2 * D3) +
+           static_cast<size_t>(i1) * static_cast<size_t>(D2 * D3) +
+           static_cast<size_t>(i2) * static_cast<size_t>(D3) +
+           static_cast<size_t>(i3);
+}
+
+/** Linear index for [batch][i1][i2] with dims [B, D1, D2]. */
+inline size_t idx3(int b, int i1, int i2, int D1, int D2){
+    return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2) +
+           static_cast<size_t>(i1) * static_cast<size_t>(D2) +
+           static_cast<size_t>(i2);
 }

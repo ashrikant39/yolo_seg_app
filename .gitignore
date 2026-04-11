@@ -11,3 +11,5 @@ dumps/
 commands/
 tests/
 logs/
+*.txt
+*.log

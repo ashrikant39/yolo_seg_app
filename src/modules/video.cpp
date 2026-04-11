@@ -73,7 +73,7 @@ ImageBatchLoader::ImageBatchLoader(
     }
 
 
-void ImageBatchLoader::loadBatchDataPreProcessed(
+bool ImageBatchLoader::loadBatchDataPreProcessed(
     int batchIdx,
     Logger& logger,
     double normFactorAddToScaled,
@@ -88,7 +88,7 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
     size_t totalElementsPerImage = m_imgH * m_imgW * 3;
     std::vector<cv::Mat> imageList;
     imageList.reserve(m_batchSize);
-    
+
     try{
 
         for(int idx = startIdx; idx < startIdx + static_cast<int>(m_batchSize); ++idx){
@@ -115,17 +115,16 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
             batchIdx,
             '\n'
         );
-    
-        cv::dnn::blobFromImage(
+
+        cv::dnn::blobFromImages(
             imageList,
             VideoOptions::NORM_FACTOR_SCALING_MUL,
             cv::Size(m_imgW, m_imgH),
             cv::Scalar(),
-            VideoSettings::CHANNEL_ORDER == ChannelOrderMode::RGB,
+            VideoSettings::CHANNEL_ORDER != ChannelOrderMode::RGB,
             false,
             CV_32F
         ).convertTo(m_batchData.images, CV_16F);
-
     }
     
     catch(const cv::Exception& e){
@@ -148,4 +147,6 @@ void ImageBatchLoader::loadBatchDataPreProcessed(
         );
         throw e;
     }
+
+    return true;
 }

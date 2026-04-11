@@ -96,13 +96,11 @@ bool InferencePipeline::createInferenceTensors(){
     for(int32_t i=0; i<m_engine->getNbIOTensors(); i++){
         
         const char* name = m_engine->getIOTensorName(i);
-
         m_DeviceTensorMap[name] = {
             m_engine->getTensorDataType(name),
             m_engine->getTensorShape(name),
             m_engine->getTensorIOMode(name)
         };
-
     }
 
     return true;
@@ -183,8 +181,12 @@ InferencePipeline::InferencePipeline(
         }
         
         NVTX_RANGE("create_tensors");
-        if(!createInferenceTensors()){
-            throw std::runtime_error("Failed to allocate IO memory");
+        try{
+            if(!createInferenceTensors()) {
+                std::cout << "Failed to allocate IO memory" ; 
+            }
+        } catch (const std::exception& e) {
+            std::cout << e.what();
         }
         NVTX_POP();
 
@@ -242,6 +244,16 @@ bool InferencePipeline::runInference(){
     size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].getDtype());
     size_t numInputElements = m_DeviceTensorMap[inputName].getNumElements();
 
+    // m_logger.logConcatMessage(Severity::kINFO, "Logging Input\n");
+
+    // for(size_t i = 0; i < numInputElements; i++){
+    //     if (i < 1000) {
+    //         m_logger.logConcatMessage(Severity::kINFO, "Index: ", i, " Value: ", m_DeviceTensorMap[inputName].ptr()[i], '\n');
+    //     }
+    // }
+
+    // return false;
+
     cudaMemPrefetchAsync(
         m_DeviceTensorMap[inputName].ptr(),
         bytesPerElement * numInputElements,
@@ -283,7 +295,7 @@ bool InferencePipeline::runInference(){
         std::cerr << "Stream Destruction Failed." << std::endl;
         return false;
     }
-
+    
     return true;
 }
 
@@ -297,7 +309,7 @@ void InferencePipeline::runInferencePipeline(){
 
     auto beginCompute = std::chrono::high_resolution_clock::now();
 
-    for(size_t batchIdx=0; batchIdx < totalBatches; batchIdx++){
+    for(size_t batchIdx=0; batchIdx < totalBatches; batchIdx++) {
 
         const size_t startIdx = batchIdx * batchSize;
         const size_t count = std::min(batchSize, totalImgs - startIdx);
@@ -306,17 +318,22 @@ void InferencePipeline::runInferencePipeline(){
             allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx + count));
 
         NVTX_RANGE("PreProcessBatch");
+        
+        m_logger.log(Severity::kINFO, "Batch Loading");
 
-        m_batchLoader->loadBatchDataPreProcessed(
+        if (!m_batchLoader->loadBatchDataPreProcessed(
             batchIdx,
             m_logger,
             VideoOptions::NORM_FACTOR_ADD_TO_SCALED,
-            VideoOptions::NORM_FACTOR_SCALING_MUL);            
+            VideoOptions::NORM_FACTOR_SCALING_MUL)
+        ) {
+            std::cerr << "Batch Loading Failed for batch: " << batchIdx << std::endl;
+        }
         NVTX_POP();
         
         NVTX_RANGE("Inference");
         if(!runInference()){
-            std::cerr << "Inference Failed" << std::endl;
+            std::cerr << "Inference Failed for batch: " << batchIdx << std::endl;
         }
         NVTX_POP();
 
@@ -326,7 +343,7 @@ void InferencePipeline::runInferencePipeline(){
     }
 
     auto endCompute = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration<double>(endCompute - beginCompute).count();
+    auto duration = std::chrono::duration<double>(endCompute - beginCompute).count();
         
     m_logger.logConcatMessage(
         Severity::kINFO,

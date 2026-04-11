@@ -15,42 +15,23 @@
 
 namespace {
 
-inline float sigmoid(float x) {
-    return 1.f / (1.f + std::exp(-std::max(-50.f, std::min(50.f, x))));
-}
-
-/** Linear index for [batch][i1][i2][i3] with dims [B, D1, D2, D3]. */
-inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3){
-    return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2 * D3) +
-           static_cast<size_t>(i1) * static_cast<size_t>(D2 * D3) +
-           static_cast<size_t>(i2) * static_cast<size_t>(D3) +
-           static_cast<size_t>(i3);
-}
-
-/** Linear index for [batch][i1][i2] with dims [B, D1, D2]. */
-inline size_t idx3(int b, int i1, int i2, int D1, int D2){
-    return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2) +
-           static_cast<size_t>(i1) * static_cast<size_t>(D2) +
-           static_cast<size_t>(i2);
-}
-
 cv::Mat computeInstanceMask(
-    const float* protoBatch,  // [nm, H, W] row-major contiguous
-    int nm,
+    const float* protoBatch,  // [nProtoFeats, H, W] row-major contiguous
+    int nProtoFeats,
     int maskH,
     int maskW,
     const float* maskCoeffs) {
 
     const int hw = maskH * maskW;
-    cv::Mat coeff(1, nm, CV_32F, const_cast<float*>(maskCoeffs));
-    cv::Mat protoFlat(nm, hw, CV_32F, const_cast<float*>(protoBatch));
+    cv::Mat coeff(1, nProtoFeats, CV_32F, const_cast<float*>(maskCoeffs));
+    cv::Mat protoFlat(nProtoFeats, hw, CV_32F, const_cast<float*>(protoBatch));
     cv::Mat logits;
     cv::gemm(coeff, protoFlat, 1.0, cv::Mat(), 0.0, logits);  // 1 x (H*W)
 
     cv::Mat mask(maskH, maskW, CV_32F);
     float* dst = mask.ptr<float>();
     const float* src = logits.ptr<float>();
-    for (int i = 0; i < hw; ++i) {
+    for (size_t i = 0; i < hw; ++i) {
         dst[i] = sigmoid(src[i]);
     }
     return mask;
@@ -115,32 +96,31 @@ void PostProcessor::postProcessOutputs(
         return;
     }
 
-    // Use Eigen views (slice/chip) for readability when decoding boxes/scores/mask coeffs.
     const nvinfer1::Dims boxDims = m_postProcessTensorMap[boxKey].getDims();  // [B, NObjects, Box+Feature+Cls], Box+Feature+Cls = nCoeffs
     const nvinfer1::Dims protoDims = m_postProcessTensorMap[protoKey].getDims(); // [B, nm, H, W] , nm = Feature 
 
-    const int batchSize = static_cast<int>(boxDims.d[0]);
-    const int nBoxes = static_cast<int>(boxDims.d[1]);
-    const int nCoeffs = static_cast<int>(boxDims.d[2]);
-    const int nm = static_cast<int>(protoDims.d[1]);
-    const int maskH = static_cast<int>(protoDims.d[2]);
-    const int maskW = static_cast<int>(protoDims.d[3]);
+    const size_t batchSize = static_cast<int>(boxDims.d[0]);
+    const size_t nBoxes = static_cast<int>(boxDims.d[1]);
+    const size_t nCoeffs = static_cast<int>(boxDims.d[2]);
+    const size_t nProtoFeats = static_cast<int>(protoDims.d[1]);
+    const size_t maskH = static_cast<int>(protoDims.d[2]);
+    const size_t maskW = static_cast<int>(protoDims.d[3]);
 
-    const int nc = PostProcessingOptions::NUM_CLASSES;
-    const int maskStart = YoloSegDecodeSettings::MASK_COEFF_START;
-    const int nmExpected = nCoeffs - maskStart;
+    const size_t nClasses = PostProcessingOptions::NUM_CLASSES;
+    const size_t maskStart = YoloSegDecodeSettings::MASK_COEFF_START;
+    const size_t nmExpected = nCoeffs - maskStart;
 
-    if (nmExpected != nm) {
+    if (nmExpected != nProtoFeats) {
         logger.logConcatMessage(
             Severity::kWARNING,
             "Mask coeff count (",
             nCoeffs - maskStart,
             ") != prototype channels (",
-            nm,
+            nProtoFeats,
             "). Check MASK_COEFF_START / NUM_CLASSES vs engine.\n");
     }
 
-    if (maskStart + nm > nCoeffs) {
+    if (maskStart + nProtoFeats > nCoeffs) {
         logger.logConcatMessage(Severity::kERROR, "Invalid tensor layout: not enough channels for mask coeffs.\n");
         return;
     }
@@ -150,8 +130,8 @@ void PostProcessor::postProcessOutputs(
     const float* protoData = m_postProcessTensorMap[protoKey].ptr();
     const float* boxData = m_postProcessTensorMap[boxKey].ptr();
 
-    for (int b = 0; b < batchSize; ++b) {
-        if (b >= static_cast<int>(batchFileNames.size())) {
+    for (size_t b = 0; b < batchSize; ++b) {
+        if (b >= batchFileNames.size()) {
             break;
         }
 
@@ -167,34 +147,34 @@ void PostProcessor::postProcessOutputs(
         //     Eigen::DSizes<Eigen::Index, 2>{nBoxes, 4});
 
         // Score tensors: created lazily depending on layout.
-        const bool hasObjAndCls = (maskStart == 4 + 1 + nc);
-        const bool hasClsOnly = (maskStart == 4 + nc);
+        const bool hasObjAndCls = (maskStart == 4 + 1 + nClasses);
+        const bool hasClsOnly = (maskStart == 4 + nClasses);
 
         // Eigen::Tensor<float, 2> objSliceT; // materialized via eval() when needed
         // Eigen::Tensor<float, 2> clsSliceT; // materialized via eval()
 
-        int clsCount = 0;
+        size_t clsCount = 0;
 
         if (hasObjAndCls){
-            clsCount = nc;
+            clsCount = nClasses;
         }
         else if (hasClsOnly){
-            clsCount = nc;
+            clsCount = nClasses;
         }
         else{
             // Heuristic: objectness at 4, classes from 5 to maskStart.
-            clsCount = std::min(nc, std::max(0, maskStart - 5));
+            clsCount = std::min(nClasses, std::max(0UL, maskStart - 5));
         }
 
         std::vector<cv::Rect2d> candBoxes;
         std::vector<float> candScores;
-        std::vector<int> candOrigRow;
+        std::vector<size_t> candOrigRow;
 
         candBoxes.reserve(static_cast<size_t>(nBoxes));
         candScores.reserve(static_cast<size_t>(nBoxes));
         candOrigRow.reserve(static_cast<size_t>(nBoxes));
 
-        for (int i = 0; i < nBoxes; ++i) {
+        for (size_t i = 0; i < nBoxes; ++i) {
             // Decode box geometry from boxesXYWH.
             // Model outputs are assumed to be in pixel space of the preprocessed input.
             const float *boxStart = boxData + idx3(b, i, 0, nBoxes, nCoeffs);
@@ -214,11 +194,14 @@ void PostProcessor::postProcessOutputs(
             const double bw = std::max(0., w);
             const double bh = std::max(0., h);
 
+            // logger.logConcatMessage(Severity::kINFO, "Boxes: ", '[', x1, ", ", y1, ", ", bw, ", ", bh, "]\n");
+            // logger.logConcatMessage(Severity::kINFO, "Class: ", clsStart[0], "]\n");
+            // logger.logConcatMessage(Severity::kINFO, "Sigmoid Class: ", sigmoid(clsStart[0]), "]\n\n");
             // Decode confidence and (optional) class via sigmoid logits.
             float best = 0.f;
-            int bestId = 0;
+            size_t bestId = 0;
 
-            for (int c = 0; c < clsCount; ++c) {
+            for (size_t c = 0; c < clsCount; ++c) {
                 const float s = sigmoid(clsStart[c]);
                 if (s > best) {
                     best = s;
@@ -243,7 +226,7 @@ void PostProcessor::postProcessOutputs(
             continue;
         }
 
-        // Applying non-maximal suppression
+        // Applying non-maximal suppression, indices has to be of type [int]
         std::vector<int> nmsIndices;
         cv::dnn::NMSBoxes(
             candBoxes,
@@ -265,23 +248,23 @@ void PostProcessor::postProcessOutputs(
                 break;
             }
 
-            const int origRow = candOrigRow[static_cast<size_t>(k)];
+            const int origRow = candOrigRow[k];
 
-            std::vector<float> mcoef(static_cast<size_t>(nm));
+            std::vector<float> mcoef(static_cast<size_t>(nProtoFeats));
 
-            for (int j = 0; j < nm; ++j) {
+            for (size_t j = 0; j < nProtoFeats; ++j) {
                 size_t m_idx = idx3(b, origRow, maskStart + j, nBoxes, nCoeffs);
-                mcoef[static_cast<size_t>(j)] = boxData[m_idx];
+                mcoef[j] = boxData[m_idx];
             }
 
-            const size_t protoOff = idx4(b, 0, 0, 0, nm, maskH, maskW);
-            cv::Mat instMask = computeInstanceMask(protoData + protoOff, nm, maskH, maskW, mcoef.data());
+            const size_t protoOff = idx4(b, 0, 0, 0, nProtoFeats, maskH, maskW);
+            cv::Mat instMask = computeInstanceMask(protoData + protoOff, nProtoFeats, maskH, maskW, mcoef.data());
 
             cv::Mat maskUp;
             cv::resize(instMask, maskUp, cv::Size(m_modelInputW, m_modelInputH), 0, 0, cv::INTER_LINEAR);
 
             cv::Mat bin;
-            cv::threshold(maskUp, bin, 0.5, 1.0, cv::THRESH_BINARY);
+            cv::threshold(maskUp, bin, PostProcessingOptions::MASK_THRESH, 1.0, cv::THRESH_BINARY);
 
             const uchar color[3] = {
                 static_cast<uchar>(40 + (detId * 47) % 200),
@@ -290,9 +273,9 @@ void PostProcessor::postProcessOutputs(
 
             for (int y = 0; y < canvas.rows; ++y) {
                 cv::Vec3b* rowPtr = canvas.ptr<cv::Vec3b>(y);
-                const float* m = bin.ptr<float>(y);
+                const float* maskRow = bin.ptr<float>(y);
                 for (int x = 0; x < canvas.cols; ++x) {
-                    if (m[x] > 0.5f) {
+                    if (maskRow[x] > 0.5f) {
                         rowPtr[x][0] = static_cast<uchar>((rowPtr[x][0] + color[0]) / 2);
                         rowPtr[x][1] = static_cast<uchar>((rowPtr[x][1] + color[1]) / 2);
                         rowPtr[x][2] = static_cast<uchar>((rowPtr[x][2] + color[2]) / 2);

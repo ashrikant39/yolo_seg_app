@@ -88,13 +88,12 @@ int main(int argc, const char* argv[]){
         
         return 0;
     }
-    catch(const cxxopts::exceptions::exception& e){
+    catch(const cxxopts::exceptions::exception& e) {
         std::cout << "Error parsing options: " << e.what() << '\n';
         return 1;
     }
-    catch(const std::exception& e){
+    catch(const std::exception& e) {
         std::cerr << "Fatal error: " << e.what() << "\n";
         return 1;
     }
-
 }

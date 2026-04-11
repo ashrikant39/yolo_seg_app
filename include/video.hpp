@@ -110,7 +110,7 @@ class ImageBatchLoader{
          * @param normFactorAddToScaled Normalization add term (currently unused in implementation).
          * @param normFactorScalingMul Normalization multiplier applied in blob creation.
          */
-        void loadBatchDataPreProcessed(
+        bool loadBatchDataPreProcessed(
             int batchIdx, 
             Logger& logger, 
             double normFactorAddToScaled, 
