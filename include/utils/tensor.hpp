@@ -3,47 +3,14 @@
 #include <unordered_map>
 #include <NvInfer.h>
 #include <string>
-#include <memory>
+#include <utils/memory.hpp>
 #include <numeric>
 #include <type_traits>
-#include "utils/cuda.hpp"
 #include <opencv2/core.hpp>
 #include <logger.hpp>
 
-template <typename T>
-using UniquePtrToArray = std::unique_ptr<T[]>;
-
-template <typename T>
-using CudaUniquePtrToArray = std::unique_ptr<T[], CudaDeleter<T>>;
 
 template <template <typename> class PtrType>
-struct PtrFactory;
-
-template <>
-struct PtrFactory<UniquePtrToArray> {
-    template <typename T>
-    static UniquePtrToArray<T> make(std::size_t numElements) {
-        return std::make_unique<T[]>(numElements);
-    }
-};
-
-template <>
-struct PtrFactory<CudaUniquePtrToArray> {
-    template <typename T>
-    static CudaUniquePtrToArray<T> make(std::size_t numElements) {
-        void* ptr = nullptr;
-        CUDA_THROW(cudaMallocManaged(&ptr, sizeof(T) * numElements));
-        return CudaUniquePtrToArray<T>(static_cast<T*>(ptr));
-    }
-};
-
-template <typename T, template <typename> class PtrType>
-PtrType<T> makeUniquePtr(std::size_t numElements) {
-    return PtrFactory<PtrType>::template make<T>(numElements);
-}
-
-
-template <typename T, template <typename> class PtrType>
 class Tensor{
 
     public:
@@ -67,7 +34,7 @@ class Tensor{
                 static_cast<size_t>(1),
                 std::multiplies<>()
             )) {
-                m_unqPtr = makeUniquePtr<T, PtrType>(m_numElements);
+                m_unqPtr = makeUniquePtr<std::byte, PtrType>(m_numElements * getElementSize(trtDtype));
             }
 
         /**
@@ -93,65 +60,71 @@ class Tensor{
         /**
          * @brief Mutable raw pointer to underlying contiguous storage.
          */
-        T* ptr(){
+        void* rawPtr(){
             return m_unqPtr.get();
         }
 
         /**
          * @brief Const raw pointer to underlying contiguous storage.
          */
-        const T* ptr() const {
+        const void* rawPtr() const {
             return m_unqPtr.get();
         }
 
+        template <typename T>
+        T* ptr() {
+            validateType<T>();
+            return reinterpret_cast<T*>(m_unqPtr.get());
+        }
+
+        template <typename T>
+        const T* ptr() const {
+            validateType<T>();
+            return reinterpret_cast<const T*>(m_unqPtr.get());
+        }
+
     private:
+
         nvinfer1::DataType m_trtDtype;
         size_t m_numElements;
         nvinfer1::Dims m_dims;
         nvinfer1::TensorIOMode m_mode;
-        PtrType<T> m_unqPtr;
+        PtrType<std::byte> m_unqPtr;
+
+        template <typename T>
+        void validateType() const {
+            bool ok = false;
+
+            if constexpr (std::is_same_v<T, float>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kFLOAT);
+
+            } else if constexpr (std::is_same_v<T, __half>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kHALF);
+
+            } else if constexpr (std::is_same_v<T, cv::float16_t>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kHALF);
+                
+            } else if constexpr (std::is_same_v<T, int8_t>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kINT8);
+
+            } else if constexpr (std::is_same_v<T, int32_t>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kINT32);
+
+            } else if constexpr (std::is_same_v<T, uint8_t>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kUINT8);
+
+            } else if constexpr (std::is_same_v<T, bool>) {
+                ok = (m_trtDtype == nvinfer1::DataType::kBOOL);
+
+            }
+            if (!ok) {
+                throw std::runtime_error("Requested pointer type does not match TensorRT dtype");
+            }
+        }
 };
 
-
-template <typename T>
-using TensorMap = std::unordered_map<std::string, Tensor<T, UniquePtrToArray>>;
-
-template <typename T>
-using CudaTensorMap = std::unordered_map<std::string, Tensor<T, CudaUniquePtrToArray>>;
-
-
-/** Copy half-precision buffer to float32 (CPU-side buffers). */
-inline void copyDataToFloat32(const cv::float16_t* src, float* dst, size_t numElements) {
-    
-    for (size_t i = 0; i < numElements; ++i) {
-        dst[i] = static_cast<float>(src[i]);    
-    }
-}
-
-
-template <template <typename> class PtrType>
-/**
- * @brief Convert an FP16 tensor to FP32 into a temporary output tensor.
- *
- * @note Current implementation writes to a local temporary and does not return it.
- */
-void castHalfToSinglePrecision(const Tensor<cv::float16_t, PtrType>& input){
-
-    Tensor<float, PtrType> output = {
-        nvinfer1::DataType::kFLOAT,
-        input.getDims(),
-        input.getIOMode()
-    };
-
-    cv::float16_t *src = input.ptr();
-    float *dst = output.ptr();
-    const size_t totalElements = input.getNumElements();
-
-    for(int i = 0; i < totalElements; i++){
-        dst[i] = static_cast<float>(src[i]);
-    }
-
-}
+using TensorMap = std::unordered_map<std::string, Tensor<UniquePtrToArray>>;
+using CudaTensorMap = std::unordered_map<std::string, Tensor<CudaUniquePtrToArray>>;
 
 inline float sigmoid(float x) {
     return 1.f / (1.f + std::exp(-std::max(-50.f, std::min(50.f, x))));

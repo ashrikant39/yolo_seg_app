@@ -80,7 +80,7 @@ class InferencePipeline{
         std::unique_ptr<nvinfer1::IRuntime> m_runtime;
         std::unique_ptr<nvinfer1::ICudaEngine> m_engine;
         std::unique_ptr<nvinfer1::IExecutionContext> m_context;
-        CudaTensorMap<cv::float16_t> m_DeviceTensorMap;
+        CudaTensorMap m_DeviceTensorMap;
         nvinfer1::DataType _computeTypeInference;
         std::unique_ptr<ImageBatchLoader> m_batchLoader;
         std::unique_ptr<PostProcessor> m_postProcessor;
@@ -91,7 +91,3 @@ class InferencePipeline{
  * @brief Load a serialized TensorRT engine file into a byte buffer.
  */
 std::vector<char> readEngineFileToArray(const fs::path& fileName);
-/**
- * @brief Get element size in bytes for a TensorRT data type.
- */
-size_t getElementSize(nvinfer1::DataType dtype);

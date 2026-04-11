@@ -30,18 +30,18 @@ class PostProcessor{
          */
         PostProcessor(
             const fs::path& resultsDir,
-            int modelInputWidth,
-            int modelInputHeight
+            int imageWidth,
+            int imageHeight
         );
 
         void postProcessOutputs(
-            CudaTensorMap<cv::float16_t>& inferenceTensorMap,
+            CudaTensorMap& modelOutputMap,
             const std::vector<fs::path>& batchFileNames,
             Logger& logger);
 
     private:
-        TensorMap<float> m_postProcessTensorMap;
+        TensorMap m_postProcessTensorMap;
         fs::path m_resultsDir;
-        int m_modelInputW{0};
-        int m_modelInputH{0};
+        int m_imageW{0};
+        int m_imageH{0};
 };

@@ -42,16 +42,16 @@ cv::Mat computeInstanceMask(
 // CONSTRUCTOR — CPU float buffers for outputs only (decode / NMS / masks on host).
 PostProcessor::PostProcessor(
     const fs::path& resultsDir,
-    int modelInputWidth,
-    int modelInputHeight)
+    int imageWidth,
+    int imageHeight)
     : m_resultsDir(resultsDir),
-      m_modelInputW(modelInputWidth),
-      m_modelInputH(modelInputHeight) {
+      m_imageW(imageWidth),
+      m_imageH(imageHeight) {
 }
 
 
 void PostProcessor::postProcessOutputs(
-    CudaTensorMap<cv::float16_t>& inferenceTensorMap,
+    CudaTensorMap& modelOutputMap,
     const std::vector<fs::path>& batchFileNames,
     Logger& logger) {
 
@@ -60,13 +60,13 @@ void PostProcessor::postProcessOutputs(
     // Lazy allocation of CPU buffers for output tensors.
     // We allocate based on the actual engine output tensor metadata provided at runtime.
     if (m_postProcessTensorMap.empty()) {
-        for (const auto& [name, tensor] : inferenceTensorMap) {
+        for (const auto& [name, tensor] : modelOutputMap) {
             if (tensor.getIOMode() != nvinfer1::TensorIOMode::kOUTPUT) {
                 continue;
             }            
             m_postProcessTensorMap.emplace(
                 name,
-                Tensor<float, UniquePtrToArray>(
+                Tensor<UniquePtrToArray>(
                     nvinfer1::DataType::kFLOAT,
                     tensor.getDims(),
                     nvinfer1::TensorIOMode::kOUTPUT)
@@ -74,12 +74,40 @@ void PostProcessor::postProcessOutputs(
         }
     }
 
-    for (auto& [name, tensor] : inferenceTensorMap) {
+    // float *fptr1 = modelOutputMap[ModelSettings::BOX_FEATURE_KEY].ptr<float>();
+    // half *hptr1 = modelOutputMap[ModelSettings::PROTO_MASK_KEY].ptr<__half>();
+
+    // float *fptr2 = m_postProcessTensorMap[ModelSettings::BOX_FEATURE_KEY].ptr<float>();
+    // float *fptr3 = m_postProcessTensorMap[ModelSettings::PROTO_MASK_KEY].ptr<float>();
+
+    // size_t box_size = modelOutputMap[ModelSettings::BOX_FEATURE_KEY].getNumElements();
+    // size_t proto_size = modelOutputMap[ModelSettings::PROTO_MASK_KEY].getNumElements();
+
+    // float fvalue1 = fptr1[box_size - 1];
+    // __half hvalue1 = hptr1[proto_size - 1];
+
+    // float fvalue2 = fptr2[box_size - 1];
+    // float fvalue3 = fptr3[box_size - 1];
+
+    // float fvalue4 = fptr1[box_size];
+
+    for (auto& [name, tensor] : modelOutputMap) {
         auto it = m_postProcessTensorMap.find(name);
         if (it == m_postProcessTensorMap.end()) {
             continue;
         }
-        copyDataToFloat32(tensor.ptr(), it->second.ptr(), tensor.getNumElements());
+
+        if (tensor.getDtype() == nvinfer1::DataType::kHALF){            
+            castHalfToFloat(it->second.ptr<float>(), tensor.ptr<__half>(), tensor.getNumElements());
+        }
+
+        else if (tensor.getDtype() == nvinfer1::DataType::kFLOAT) {
+            std::memcpy(it->second.ptr<float>(), tensor.ptr<float>(), tensor.getNumElements() * sizeof(float));
+        }
+        else {
+            throw std::runtime_error("GPU Output : Wrong type");
+        }
+        
     }
 
     const std::string boxKey = ModelSettings::BOX_FEATURE_KEY;
@@ -127,8 +155,8 @@ void PostProcessor::postProcessOutputs(
 
     fs::create_directories(m_resultsDir);
 
-    const float* protoData = m_postProcessTensorMap[protoKey].ptr();
-    const float* boxData = m_postProcessTensorMap[boxKey].ptr();
+    const float* protoData = m_postProcessTensorMap[protoKey].ptr<float>();
+    const float* boxData = m_postProcessTensorMap[boxKey].ptr<float>();
 
     for (size_t b = 0; b < batchSize; ++b) {
         if (b >= batchFileNames.size()) {
@@ -221,6 +249,24 @@ void PostProcessor::postProcessOutputs(
             }
         }
 
+        for (int i = 0; i < candBoxes.size(); i++){
+            logger.logConcatMessage(
+                Severity::kINFO,
+                "Index: ",
+                i,
+                " Box Before NMS: [", 
+                candBoxes[i].x, 
+                ", ", 
+                candBoxes[i].y, 
+                ", ", 
+                candBoxes[i].width, 
+                ", ", 
+                candBoxes[i].height, 
+                "] Score: ",
+                candScores[i],
+                '\n'
+            );
+        }
         if (candBoxes.empty()) {
             logger.logConcatMessage(Severity::kINFO, "No detections above threshold for batch item ", b, "\n");
             continue;
@@ -240,7 +286,11 @@ void PostProcessor::postProcessOutputs(
         const fs::path& outStem = batchFileNames[static_cast<size_t>(b)].stem();
         const fs::path visPath = m_resultsDir / (outStem.string() + "_seg_vis.png");
 
-        cv::Mat canvas = cv::Mat::zeros(m_modelInputH, m_modelInputW, CV_8UC3);
+        cv::Mat canvas = cv::Mat::zeros(m_imageH, m_imageW, CV_8UC3);
+
+        for (const int index: nmsIndices){
+            logger.logConcatMessage(Severity::kINFO, "NMS Index: ", index, '\n');
+        }
 
         int detId = 0;
         for (int k : nmsIndices) {
@@ -261,7 +311,7 @@ void PostProcessor::postProcessOutputs(
             cv::Mat instMask = computeInstanceMask(protoData + protoOff, nProtoFeats, maskH, maskW, mcoef.data());
 
             cv::Mat maskUp;
-            cv::resize(instMask, maskUp, cv::Size(m_modelInputW, m_modelInputH), 0, 0, cv::INTER_LINEAR);
+            cv::resize(instMask, maskUp, cv::Size(m_imageW, m_imageH), 0, 0, cv::INTER_LINEAR);
 
             cv::Mat bin;
             cv::threshold(maskUp, bin, PostProcessingOptions::MASK_THRESH, 1.0, cv::THRESH_BINARY);

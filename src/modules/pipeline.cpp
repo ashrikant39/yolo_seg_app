@@ -22,23 +22,6 @@
 #endif
 
 
-size_t getElementSize(nvinfer1::DataType dtype){
-
-    switch (dtype) {
-        case nvinfer1::DataType::kFLOAT: 
-            return 4;
-        case nvinfer1::DataType::kHALF: 
-            return 2;
-        case nvinfer1::DataType::kBF16: 
-            return 2;
-        case nvinfer1::DataType::kINT8: 
-            return 1;
-        case nvinfer1::DataType::kINT32: 
-            return 4;
-        default: throw std::runtime_error("Unknown data type");
-    }
-}
-
 std::vector<char> readEngineFileToArray(const fs::path& fileName){
 
     std::ifstream file(fileName, std::ios::binary);
@@ -205,7 +188,7 @@ InferencePipeline::InferencePipeline(
             inputDims.d[2],
             inputDims.d[3],
             m_logger,
-            m_DeviceTensorMap[inputName].ptr()
+            m_DeviceTensorMap[inputName].ptr<cv::float16_t>()
         );
         NVTX_POP();
         
@@ -220,7 +203,7 @@ InferencePipeline::InferencePipeline(
 
         NVTX_RANGE("AddressSetting");
         for(auto& [name, d_tensor] : m_DeviceTensorMap){
-            if(!m_context->setTensorAddress(name.c_str(), d_tensor.ptr())){
+            if(!m_context->setTensorAddress(name.c_str(), d_tensor.rawPtr())){
                 std::cerr << "Failed to set tensor Address for {" << name << "}.";
             }
         }
@@ -244,18 +227,8 @@ bool InferencePipeline::runInference(){
     size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].getDtype());
     size_t numInputElements = m_DeviceTensorMap[inputName].getNumElements();
 
-    // m_logger.logConcatMessage(Severity::kINFO, "Logging Input\n");
-
-    // for(size_t i = 0; i < numInputElements; i++){
-    //     if (i < 1000) {
-    //         m_logger.logConcatMessage(Severity::kINFO, "Index: ", i, " Value: ", m_DeviceTensorMap[inputName].ptr()[i], '\n');
-    //     }
-    // }
-
-    // return false;
-
     cudaMemPrefetchAsync(
-        m_DeviceTensorMap[inputName].ptr(),
+        m_DeviceTensorMap[inputName].rawPtr(),
         bytesPerElement * numInputElements,
         {cudaMemLocationType::cudaMemLocationTypeDevice, 0},
         0,
@@ -277,7 +250,7 @@ bool InferencePipeline::runInference(){
     }
 
     cudaMemPrefetchAsync(
-        m_DeviceTensorMap[inputName].ptr(),
+        m_DeviceTensorMap[inputName].rawPtr(),
         bytesPerElement * numInputElements,
         {cudaMemLocationType::cudaMemLocationTypeHost, 0},
         0,

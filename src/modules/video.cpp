@@ -85,7 +85,6 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
     int startIdx = batchIdx * m_batchSize;
     int endIdx = std::min((batchIdx + 1) * m_batchSize, totalImgs);
     
-    size_t totalElementsPerImage = m_imgH * m_imgW * 3;
     std::vector<cv::Mat> imageList;
     imageList.reserve(m_batchSize);
 
