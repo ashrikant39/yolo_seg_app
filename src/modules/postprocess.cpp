@@ -74,23 +74,6 @@ void PostProcessor::postProcessOutputs(
         }
     }
 
-    // float *fptr1 = modelOutputMap[ModelSettings::BOX_FEATURE_KEY].ptr<float>();
-    // half *hptr1 = modelOutputMap[ModelSettings::PROTO_MASK_KEY].ptr<__half>();
-
-    // float *fptr2 = m_postProcessTensorMap[ModelSettings::BOX_FEATURE_KEY].ptr<float>();
-    // float *fptr3 = m_postProcessTensorMap[ModelSettings::PROTO_MASK_KEY].ptr<float>();
-
-    // size_t box_size = modelOutputMap[ModelSettings::BOX_FEATURE_KEY].getNumElements();
-    // size_t proto_size = modelOutputMap[ModelSettings::PROTO_MASK_KEY].getNumElements();
-
-    // float fvalue1 = fptr1[box_size - 1];
-    // __half hvalue1 = hptr1[proto_size - 1];
-
-    // float fvalue2 = fptr2[box_size - 1];
-    // float fvalue3 = fptr3[box_size - 1];
-
-    // float fvalue4 = fptr1[box_size];
-
     for (auto& [name, tensor] : modelOutputMap) {
         auto it = m_postProcessTensorMap.find(name);
         if (it == m_postProcessTensorMap.end()) {
