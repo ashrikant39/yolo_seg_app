@@ -21,5 +21,5 @@ struct YoloSegDecodeSettings{
     /** If true, first 4 channels are center-x, center-y, w, h in model input pixels. If false, xyxy in pixels. */
     static constexpr bool BOX_IS_XYWH = true;
     /** Index where mask coefficients start (after box + obj + per-class scores). */
-    static constexpr int MASK_COEFF_START = 4 + 1 + PostProcessingOptions::NUM_CLASS_ID_DIMS;
+    static constexpr int MASK_COEFF_START = 4 + 1 + PostProcessingOptions::NUM_CLS_DIMS;
 };
