@@ -45,3 +45,16 @@ class PostProcessor{
         int m_imageW{0};
         int m_imageH{0};
 };
+
+
+cv::Mat computeInstanceMask(
+    const float* protoBatch,  // [nProtoFeats, H, W] row-major contiguous
+    int nProtoFeats,
+    int maskH,
+    int maskW,
+    const float* maskCoeffs);
+
+
+inline bool validateBox(double x1, double x2, double y1, double y2, double imageW, double imageH) { 
+    return (x1 >= 0 && y1 >= 0 && x2 >= 0 && y2 >= 0 && x1 < imageW && y1 < imageH && x2 < imageW && y2 < imageH);
+}

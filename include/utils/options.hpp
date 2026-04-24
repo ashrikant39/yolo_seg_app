@@ -12,11 +12,10 @@ struct LoggerOptions{
 };
 
 struct PostProcessingOptions{
-    static constexpr int NUM_CLASSES = 1;
+    static constexpr int NUM_CLS_DIMS = 1;
     static constexpr float NMS_CONF_THRESH = 0.25f;
     static constexpr float NMS_IOU_THRESH = 0.45f;
     static constexpr int NMS_MAX_DET = 300;
-    static constexpr int NUM_CLASS_ID_DIMS = 1;
     static constexpr float MASK_THRESH = 0.5f;
 };
 
