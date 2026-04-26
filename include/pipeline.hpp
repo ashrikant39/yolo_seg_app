@@ -8,6 +8,7 @@
 #include "logger.hpp"
 #include "video.hpp"
 #include "postprocess.hpp"
+#include "utils/cuda.hpp"
 
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
@@ -33,6 +34,8 @@ class InferencePipeline{
          * @param videoDirPath Directory containing input images.
          * @param saveDirPath Directory where predictions/masks are written.
          * @param logModelInformation If true, logs tensor/layer metadata.
+         * @param saveDetsAsFile If true, saves each detected object as a .bin file.
+         * @param drawMasksOnImage If true, draws the masks on the image.
          */
         InferencePipeline(
             const fs::path& engineFilePath, 
@@ -67,7 +70,7 @@ class InferencePipeline{
         /**
          * @brief Run the full pipeline over all image batches.
          */
-        void runInferencePipeline();
+        void runInferencePipeline(bool saveDetsAsFile, bool drawMasksOnImage);
 
     private:
 

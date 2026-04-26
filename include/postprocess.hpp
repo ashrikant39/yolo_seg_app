@@ -6,6 +6,8 @@
 #include <filesystem>
 #include "utils/options.hpp"
 #include <opencv2/core.hpp>
+#include "utils/cuda.hpp"
+#include "utils/detection.hpp"
 
 namespace fs = std::filesystem;
 
@@ -37,7 +39,10 @@ class PostProcessor{
         void postProcessOutputs(
             CudaTensorMap& modelOutputMap,
             const std::vector<fs::path>& batchFileNames,
-            Logger& logger);
+            Logger& logger,
+            bool saveDetsAsFile,
+            bool drawMasksOnImage
+        );
 
     private:
         TensorMap m_postProcessTensorMap;
@@ -58,3 +63,22 @@ cv::Mat computeInstanceMask(
 inline bool validateBox(double x1, double x2, double y1, double y2, double imageW, double imageH) { 
     return (x1 >= 0 && y1 >= 0 && x2 >= 0 && y2 >= 0 && x1 < imageW && y1 < imageH && x2 < imageW && y2 < imageH);
 }
+
+
+void drawDetectedMasksOnImage(
+    const cv::Mat& image,
+    const fs::path& maskPath,
+    const cv::Mat& instMask,
+    const size_t resizeMaskH,
+    const size_t resizeMaskW,
+    const cv::Rect2d& boundingBox,
+    const size_t label
+);
+
+
+bool getDetections(
+    const cv::Mat& mask,
+    const cv::Rect2d& boundingBox,
+    size_t classLabel,
+    double objectNess
+);
