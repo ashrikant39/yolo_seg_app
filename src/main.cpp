@@ -17,7 +17,7 @@ int main(int argc, const char* argv[]){
             ("logPath", "TRT Log filepath", cxxopts::value<fs::path>()->default_value("example.log"))
             ("videoDirPath", "Directory to load images from.", cxxopts::value<fs::path>())
             ("saveDirPath", "Directory to save predictions to.", cxxopts::value<fs::path>())
-            ("saveDetsAsFiles", "Whether to save the detections as .bin files. Each detection saved separately. If false, no output.", cxxopts::value<bool>()->default_value("true")->implicit_value("true"))
+            ("saveDetsAsFiles", "Whether to save all the detections per image as a .bin file. If false, no output.", cxxopts::value<bool>()->default_value("true")->implicit_value("true"))
             ("drawMasksOnImage", "Whether to draw the detected masks on the image.", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))
             ("mode", "Inference mode: folder or video (video not implemented yet).", cxxopts::value<std::string>()->default_value("folder"))
             ("logModelInfo", "Whether to log Model Info", cxxopts::value<bool>()->default_value("false")->implicit_value("true"))

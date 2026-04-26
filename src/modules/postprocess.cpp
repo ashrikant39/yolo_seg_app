@@ -298,6 +298,10 @@ void PostProcessor::postProcessOutputs(
 
         int detId = 0;
         NVTX_RANGE("GET_MASKS_AND_BOXES_PER_IMAGE");
+        
+        std::vector<Detection> detections;
+        detections.reserve(nmsIndices.size());
+        
         for (int k : nmsIndices) {
 
             if (detId >= PostProcessingOptions::NMS_MAX_DET) {
@@ -319,36 +323,39 @@ void PostProcessor::postProcessOutputs(
             cv::Mat instMask = computeInstanceMask(protoData + protoOff, nMaskCoeffs, maskW, maskH, maskCoefficients.data());
             
             cv::Mat detMask8 = getRoIMaskFromRaw(instMask, boundingBox, m_imageW, m_imageH);
-            
             Detection det;
+
             if (!getDetections(detMask8, boundingBox, label, objScore, det)) {
                 continue;
             }
 
-            if (saveDetsAsFile) {
-                
-                NVTX_RANGE("WRITE_DET");
-                NVTX_RANGE("SERIALIZE_DET");
-                std::vector<uint8_t> bytes = det.serializeToByteArray();
-                NVTX_POP();
-                const fs::path detFilePath = m_resultsDir / (outStem.string() + "_detection_" + std::to_string(detId) + ".bin");
-
-                std::ofstream detFile(detFilePath, std::ios::out | std::ios::binary);
-
-                if (!detFile) {
-                    throw std::runtime_error("Couldn't create the file");
-                }
-                detFile.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
-                detFile.close();
-                NVTX_POP();
-            }
+            detections.push_back(std::move(det));
 
             if (drawMasksOnImage) {
                 const fs::path maskPath = m_resultsDir / (outStem.string() + "_det" + std::to_string(detId) + "_mask.png");
                 drawDetectedMasksOnImage(resizedImg, maskPath, instMask, m_imageW, m_imageH, boundingBox, label);
             }
             ++detId;
+            
         }
         NVTX_POP();
+
+        if (saveDetsAsFile) {
+                
+            NVTX_RANGE("WRITE_DET");
+            NVTX_RANGE("SERIALIZE_DETECTIONS");
+            std::vector<uint8_t> bytes = serializeDetectionsToByteArray(detections);
+            NVTX_POP();
+            const fs::path detFilePath = m_resultsDir / (outStem.string() + "_detection_" + ".bin");
+
+            std::ofstream detFile(detFilePath, std::ios::out | std::ios::binary);
+
+            if (!detFile) {
+                throw std::runtime_error("Couldn't create the file");
+            }
+            detFile.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+            detFile.close();
+            NVTX_POP();
+        }
     }
 }

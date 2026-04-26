@@ -7,16 +7,15 @@
 struct Detection {
     public:
 
-        std::vector<uint8_t> serializeToByteArray() {
-            size_t totalSize =  sizeof(size_t) +                                        // classLabel
-                                sizeof(double) +                                        // objectness
-                                sizeof(double) * 4 +                                    // box coordinates [x, y, w, h]
-                                sizeof(size_t) +                                        // number of countour points
-                                normalizedObjContour.size() * sizeof(double) * 2;       // contour points [xi, yi]
-                                
+        bool serializeToByteArray(std::vector<uint8_t>& byteArray, size_t startPos = 0) const {
 
-            std::vector<uint8_t> bytes(totalSize);
-            uint8_t *ptr = bytes.data();
+            size_t totalSize = getSerializedSize();
+
+            if ( startPos > byteArray.size() || totalSize > byteArray.size() - startPos ) {
+                return false;
+            }
+
+            uint8_t *ptr = byteArray.data() + startPos;
 
             auto write = [&](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
@@ -36,7 +35,16 @@ struct Detection {
                 write(pt.x);
                 write(pt.y);
             }
-            return bytes;
+            return true;
+        }
+
+        size_t getSerializedSize() const {
+
+            return  sizeof(size_t) +                                        // classLabel
+                    sizeof(double) +                                        // objectness
+                    sizeof(double) * 4 +                                    // box coordinates [x, y, w, h]
+                    sizeof(size_t) +                                        // number of countour points
+                    normalizedObjContour.size() * sizeof(double) * 2;       // contour points [xi, yi]
         }
 
     public:
@@ -46,6 +54,31 @@ struct Detection {
         std::vector<cv::Point2d> normalizedObjContour;
 };
 
+
+inline std::vector<uint8_t> serializeDetectionsToByteArray(const std::vector<Detection>& detections) {
+
+    size_t totalSerializedSize = std::transform_reduce(
+        detections.begin(),
+        detections.end(),
+        size_t{0},
+        std::plus<>(),
+        [](const Detection& d) noexcept {
+            return d.getSerializedSize();   // or any function
+        }
+    );
+
+    std::vector<uint8_t> serializedBytes(totalSerializedSize);
+    size_t startPos = 0;
+
+    for (const auto& det: detections) {
+        if (!det.serializeToByteArray(serializedBytes, startPos)) {
+            throw std::runtime_error("Serialization failed");
+        }
+        startPos += det.getSerializedSize();
+    }
+
+    return serializedBytes;
+}
 
 inline Detection deserializeFromByteArray(const std::vector<uint8_t>& bytes) {
         

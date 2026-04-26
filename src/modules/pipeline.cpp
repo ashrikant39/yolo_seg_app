@@ -39,7 +39,7 @@ size_t InferencePipeline::getNumElements(const char* tensorName){
     size_t numElements = std::accumulate(
         tensorDims.d, 
         tensorDims.d + tensorDims.nbDims, 
-        static_cast<size_t>(1),
+        size_t{1},
         std::multiplies<>()
     );
 
@@ -239,12 +239,17 @@ bool InferencePipeline::runInference(){
         return false;
     }
 
-    cudaMemPrefetchAsync(
-        m_DeviceTensorMap[inputName].rawPtr(),
-        bytesPerElement * numInputElements,
-        {cudaMemLocationType::cudaMemLocationTypeHost, 0},
-        0,
-        stream);
+    for (const auto& name : outputNames) {
+
+        cudaMemPrefetchAsync(
+            m_DeviceTensorMap[name].rawPtr(),
+            bytesPerElement * numInputElements,
+            {cudaMemLocationType::cudaMemLocationTypeHost, 0},
+            0,
+            stream);
+            
+    }
+        
 
     error = cudaStreamSynchronize(stream);
     if(error != cudaSuccess){
