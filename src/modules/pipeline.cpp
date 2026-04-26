@@ -10,17 +10,7 @@
 #include <opencv2/dnn/dnn.hpp>
 #include <cstring>
 #include <chrono>
-#include <nvtx3/nvToolsExt.h>
 #include <assert.h>
-
-#ifndef NDEBUG
-    #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
-    #define NVTX_POP()      do { nvtxRangePop(); } while (0)
-#else
-    #define NVTX_RANGE(name) do { } while(0)
-    #define NVTX_POP()      do { } while(0)
-#endif
-
 
 std::vector<char> readEngineFileToArray(const fs::path& fileName){
 
@@ -49,7 +39,7 @@ size_t InferencePipeline::getNumElements(const char* tensorName){
     size_t numElements = std::accumulate(
         tensorDims.d, 
         tensorDims.d + tensorDims.nbDims, 
-        static_cast<size_t>(1),
+        size_t{1},
         std::multiplies<>()
     );
 
@@ -77,13 +67,14 @@ std::vector<std::string> InferencePipeline::getTensorNames(nvinfer1::TensorIOMod
 bool InferencePipeline::createInferenceTensors(){
 
     for(int32_t i=0; i<m_engine->getNbIOTensors(); i++){
-        
+        NVTX_RANGE("CreateOneTensor");
         const char* name = m_engine->getIOTensorName(i);
         m_DeviceTensorMap[name] = {
             m_engine->getTensorDataType(name),
             m_engine->getTensorShape(name),
             m_engine->getTensorIOMode(name)
         };
+        NVTX_POP();
     }
 
     return true;
@@ -138,8 +129,7 @@ InferencePipeline::InferencePipeline(
     const fs::path& logFilePath,
     const fs::path& videoDirPath,
     const fs::path& saveDirPath,
-    bool logModelInformation
-):
+    bool logModelInformation):
     m_logger(logFilePath, Severity::kINFO),
     m_runtime(std::unique_ptr<nvinfer1::IRuntime>(nvinfer1::createInferRuntime(m_logger))){
 
@@ -249,12 +239,17 @@ bool InferencePipeline::runInference(){
         return false;
     }
 
-    cudaMemPrefetchAsync(
-        m_DeviceTensorMap[inputName].rawPtr(),
-        bytesPerElement * numInputElements,
-        {cudaMemLocationType::cudaMemLocationTypeHost, 0},
-        0,
-        stream);
+    for (const auto& name : outputNames) {
+
+        cudaMemPrefetchAsync(
+            m_DeviceTensorMap[name].rawPtr(),
+            bytesPerElement * numInputElements,
+            {cudaMemLocationType::cudaMemLocationTypeHost, 0},
+            0,
+            stream);
+            
+    }
+        
 
     error = cudaStreamSynchronize(stream);
     if(error != cudaSuccess){
@@ -273,7 +268,7 @@ bool InferencePipeline::runInference(){
 }
 
 
-void InferencePipeline::runInferencePipeline(){
+void InferencePipeline::runInferencePipeline(bool saveDetsAsFile, bool drawMasksOnImage){
 
     size_t totalBatches = m_batchLoader->getTotalBatches();
     size_t totalImgs = m_batchLoader->getTotalImages();
@@ -311,7 +306,7 @@ void InferencePipeline::runInferencePipeline(){
         NVTX_POP();
 
         NVTX_RANGE("PostProcess");
-        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger);
+        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger, saveDetsAsFile, drawMasksOnImage);
         NVTX_POP();
     }
 

@@ -18,7 +18,6 @@
 #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
 #define NVTX_POP()      do { nvtxRangePop(); } while (0)
 
-
 // DEF-CONSTRUCTOR
 ImageBatchLoader::ImageBatchLoader():
     m_filesList({}),
@@ -93,7 +92,9 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
         for(int idx = startIdx; idx < startIdx + static_cast<int>(m_batchSize); ++idx){
 
             if(idx < endIdx){
+                NVTX_RANGE("imread");
                 cv::Mat image = cv::imread(m_filesList[idx], cv::IMREAD_COLOR);
+                NVTX_POP();
 
                 if(image.empty()){
                     std::cerr << "Could not read image: " << m_filesList[idx] << '\n';
@@ -115,6 +116,7 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
             '\n'
         );
 
+        NVTX_RANGE("blobFromImages");
         cv::dnn::blobFromImages(
             imageList,
             VideoOptions::NORM_FACTOR_SCALING_MUL,
@@ -124,6 +126,7 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
             false,
             CV_32F
         ).convertTo(m_batchData.images, CV_16F);
+        NVTX_POP();
     }
     
     catch(const cv::Exception& e){

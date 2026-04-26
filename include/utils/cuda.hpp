@@ -1,8 +1,12 @@
+#pragma once
+
 #include <cuda_runtime_api.h>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <stdexcept>
+#include <nvtx3/nvToolsExt.h>
+
 
 #define CUDA_CHECK(call)                                                      \
     do {                                                                      \
@@ -35,6 +39,14 @@ do {                                                                      \
             std::string("[CUDA EXCEPTION] ") + cudaGetErrorString(err));  \
     }                                                                     \
 } while (0)
+
+#ifndef NDEBUG
+    #define NVTX_RANGE(name) do { nvtxRangePushA(name); } while (0)
+    #define NVTX_POP()      do { nvtxRangePop(); } while (0)
+#else
+    #define NVTX_RANGE(name) do { } while(0)
+    #define NVTX_POP()      do { } while(0)
+#endif
 
 
 template <typename T>
