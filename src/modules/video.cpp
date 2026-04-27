@@ -135,6 +135,8 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
         std::cerr << "Func: " << e.func << "\n";
         std::cerr << "File: " << e.file << "\n";
         std::cerr << "Line: " << e.line << "\n";
+
+        throw e;
     }
 
     catch(std::exception& e){
