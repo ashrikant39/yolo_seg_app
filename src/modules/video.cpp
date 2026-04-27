@@ -72,7 +72,7 @@ ImageBatchLoader::ImageBatchLoader(
     }
 
 
-bool ImageBatchLoader::loadBatchDataPreProcessed(
+void ImageBatchLoader::loadBatchDataPreProcessed(
     int batchIdx,
     Logger& logger,
     double normFactorAddToScaled,
@@ -130,6 +130,7 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
     }
     
     catch(const cv::Exception& e){
+
         std::cerr << "OpenCV error: " << e.what() << "\n";
         std::cerr << "Code: " << e.code << "\n";
         std::cerr << "Func: " << e.func << "\n";
@@ -151,6 +152,4 @@ bool ImageBatchLoader::loadBatchDataPreProcessed(
         );
         throw e;
     }
-
-    return true;
 }
