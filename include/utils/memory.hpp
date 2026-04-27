@@ -38,10 +38,11 @@ PtrType<T> makeUniquePtr(std::size_t numElements) {
 
 /** Copy half-precision buffer to float32 (CPU-side buffers). */
 inline void castHalfToFloat(float* dst, const __half* src, size_t numElements) {
-    
+    NVTX_RANGE("CASTING_DATA_TO_FLOAT");
     for (size_t i = 0; i < numElements; ++i) {
         dst[i] = __half2float(src[i]);
     }
+    NVTX_POP();
 }
 
 

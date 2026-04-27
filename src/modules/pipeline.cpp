@@ -64,20 +64,33 @@ std::vector<std::string> InferencePipeline::getTensorNames(nvinfer1::TensorIOMod
 }
 
 
-bool InferencePipeline::createInferenceTensors(){
+void InferencePipeline::createInferenceTensors(){
 
-    for(int32_t i=0; i<m_engine->getNbIOTensors(); i++){
+    for(int32_t i = 0; i < m_engine->getNbIOTensors(); i++){
+
+        using DeviceTensor = typename decltype(m_DeviceTensorMap)::mapped_type;
         NVTX_RANGE("CreateOneTensor");
         const char* name = m_engine->getIOTensorName(i);
-        m_DeviceTensorMap[name] = {
+
+        // m_DeviceTensorMap[name] = {
+        //     m_engine->getTensorDataType(name),
+        //     m_engine->getTensorShape(name),
+        //     m_engine->getTensorIOMode(name)
+        // };
+
+        auto [it, inserted] = m_DeviceTensorMap.emplace(
+        name,
+        DeviceTensor(
             m_engine->getTensorDataType(name),
             m_engine->getTensorShape(name),
-            m_engine->getTensorIOMode(name)
-        };
+            m_engine->getTensorIOMode(name))
+        );
         NVTX_POP();
-    }
 
-    return true;
+        if (!inserted) {
+            throw std::runtime_error("Duplicate tensor name encountered: " + std::string(name));
+        }
+    }
 }
 
 
@@ -145,8 +158,11 @@ InferencePipeline::InferencePipeline(
 
         // Deserialize the engineData to an Engine using the Runtime created
         m_engine = std::unique_ptr<nvinfer1::ICudaEngine>(
-            m_runtime->deserializeCudaEngine(engineData.data(), engineData.size())
-            );
+            m_runtime->deserializeCudaEngine(
+                engineData.data(),
+                engineData.size()
+            )
+        );
         
         if(!m_engine){   
             m_logger.log(Severity::kERROR, "Failed to create TensorRT engine.");
@@ -154,13 +170,7 @@ InferencePipeline::InferencePipeline(
         }
         
         NVTX_RANGE("create_tensors");
-        try{
-            if(!createInferenceTensors()) {
-                std::cout << "Failed to allocate IO memory" ; 
-            }
-        } catch (const std::exception& e) {
-            std::cout << e.what();
-        }
+        createInferenceTensors();
         NVTX_POP();
 
         if(logModelInformation){
@@ -201,7 +211,7 @@ InferencePipeline::InferencePipeline(
 }
 
 
-bool InferencePipeline::runInference(){
+void InferencePipeline::runInference(){
 
     std::string inputName = getTensorNames(nvinfer1::TensorIOMode::kINPUT)[0];
     std::vector<std::string> outputNames = getTensorNames(nvinfer1::TensorIOMode::kOUTPUT);
@@ -210,14 +220,13 @@ bool InferencePipeline::runInference(){
     cudaError_t error = cudaStreamCreate(&stream);
 
     if(error != cudaSuccess){
-        std::cerr << "cudaStreamCreate Failed: " << cudaGetErrorString(error) << std::endl;
-        return false;
+        throw std::runtime_error("cudaStreamCreate Failed: " + std::string(cudaGetErrorString(error)) + '\n');
     }
 
     size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].getDtype());
     size_t numInputElements = m_DeviceTensorMap[inputName].getNumElements();
 
-    cudaMemPrefetchAsync(
+    error = cudaMemPrefetchAsync(
         m_DeviceTensorMap[inputName].rawPtr(),
         bytesPerElement * numInputElements,
         {cudaMemLocationType::cudaMemLocationTypeDevice, 0},
@@ -225,46 +234,58 @@ bool InferencePipeline::runInference(){
         stream
     );
 
+    if(error != cudaSuccess){
+        throw std::runtime_error("cudaMemPrefetchAsync from cpu to gpu Failed: " + std::string(cudaGetErrorString(error)) + '\n');
+    }
+
     NVTX_RANGE("EnqueueV3");
     if(!m_context->enqueueV3(stream)){
-        std::cerr << "EnqueueV3 Failed: ";
         m_logger.log(Severity::kERROR, "EnqueueV3 Failed.");
-        return false;
+        throw std::runtime_error("EnqueueV3 Failed: \n");
     }
     NVTX_POP();
 
     error = cudaStreamSynchronize(stream);
     if(error != cudaSuccess){
-        std::cerr << "Stream Synchronization Failed." << std::endl;
-        return false;
+        throw std::runtime_error("Stream Synchronization Failed Before gpu->cpu. " + std::string(cudaGetErrorString(error)) + '\n');
     }
 
     for (const auto& name : outputNames) {
 
-        cudaMemPrefetchAsync(
+        size_t bytesPerElement = getElementSize(m_DeviceTensorMap[name].getDtype());
+        size_t numElements = m_DeviceTensorMap[name].getNumElements();
+        
+        error = cudaMemPrefetchAsync(
             m_DeviceTensorMap[name].rawPtr(),
-            bytesPerElement * numInputElements,
+            bytesPerElement * numElements,
             {cudaMemLocationType::cudaMemLocationTypeHost, 0},
             0,
-            stream);
-            
-    }
+            stream
+        );
         
+        if(error != cudaSuccess){
+            throw std::runtime_error(
+                "cudaMemPrefetchAsync from cpu to gpu Failed for : " + 
+                std::string(name) + 
+                ' ' + 
+                std::string(cudaGetErrorString(error)) + 
+                '\n'
+            );
+        }
+    }
 
     error = cudaStreamSynchronize(stream);
+    
     if(error != cudaSuccess){
         std::cerr << "Stream Synchronization Failed." << std::endl;
-        return false;
+        throw std::runtime_error("Stream Synchronization Failed After CPU->GPU." + std::string(cudaGetErrorString(error)) + '\n');
     }
 
     error = cudaStreamDestroy(stream);
     
     if(error != cudaSuccess){
-        std::cerr << "Stream Destruction Failed." << std::endl;
-        return false;
+        throw std::runtime_error("Stream Destruction Failed." + std::string(cudaGetErrorString(error)) + '\n');
     }
-    
-    return true;
 }
 
 
@@ -285,29 +306,36 @@ void InferencePipeline::runInferencePipeline(bool saveDetsAsFile, bool drawMasks
             allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx),
             allPaths.begin() + static_cast<std::ptrdiff_t>(startIdx + count));
 
-        NVTX_RANGE("PreProcessBatch");
-        
-        m_logger.log(Severity::kINFO, "Batch Loading");
+        try {
 
-        if (!m_batchLoader->loadBatchDataPreProcessed(
-            batchIdx,
-            m_logger,
-            VideoOptions::NORM_FACTOR_ADD_TO_SCALED,
-            VideoOptions::NORM_FACTOR_SCALING_MUL)
-        ) {
-            std::cerr << "Batch Loading Failed for batch: " << batchIdx << std::endl;
-        }
-        NVTX_POP();
-        
-        NVTX_RANGE("Inference");
-        if(!runInference()){
-            std::cerr << "Inference Failed for batch: " << batchIdx << std::endl;
-        }
-        NVTX_POP();
+            m_logger.log(Severity::kINFO, "Batch Loading");
+            NVTX_RANGE("PreProcessBatch");
+            m_batchLoader->loadBatchDataPreProcessed(
+                batchIdx,
+                m_logger,
+                VideoOptions::NORM_FACTOR_ADD_TO_SCALED,
+                VideoOptions::NORM_FACTOR_SCALING_MUL);
+            NVTX_POP();
+            
+            NVTX_RANGE("Inference");
+            runInference();
+            NVTX_POP();
 
-        NVTX_RANGE("PostProcess");
-        m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger, saveDetsAsFile, drawMasksOnImage);
-        NVTX_POP();
+            NVTX_RANGE("PostProcess");
+            m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger, saveDetsAsFile, drawMasksOnImage);
+            NVTX_POP();
+
+        } catch (const std::exception& e) { 
+            m_logger.logConcatMessage(
+                Severity::kERROR,
+                "Batch ",
+                batchIdx,
+                " failed: ",
+                e.what(),
+                '\n'
+            );
+            continue;
+        }
     }
 
     auto endCompute = std::chrono::high_resolution_clock::now();

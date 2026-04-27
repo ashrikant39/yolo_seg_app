@@ -80,5 +80,6 @@ bool getDetections(
     const cv::Mat& mask,
     const cv::Rect2d& boundingBox,
     size_t classLabel,
-    double objectNess
+    double objectNess,
+    Detection& retDetection
 );

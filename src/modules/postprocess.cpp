@@ -11,7 +11,6 @@
 #include <opencv2/imgproc.hpp>
 #include <fstream>
 
-
 cv::Mat computeInstanceMask(
     const float* protoBatch,  // [nMaskCoeffs, H, W] row-major contiguous
     int nMaskCoeffs,
@@ -156,6 +155,7 @@ void PostProcessor::postProcessOutputs(
 
     NVTX_RANGE("CopyAndCastToCpu");
     for (auto& [name, tensor] : modelOutputMap) {
+        
         auto it = m_postProcessTensorMap.find(name);
         if (it == m_postProcessTensorMap.end()) {
             continue;
@@ -301,6 +301,11 @@ void PostProcessor::postProcessOutputs(
         
         std::vector<Detection> detections;
         detections.reserve(nmsIndices.size());
+
+        if (nmsIndices.empty()) {
+            logger.logConcatMessage(Severity::kINFO, "No detections passed the NMS for batch item ", b, "\n");
+            continue;
+        }
         
         for (int k : nmsIndices) {
 

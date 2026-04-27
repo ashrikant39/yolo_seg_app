@@ -47,14 +47,12 @@ class InferencePipeline{
 
         /**
          * @brief Allocate and register TensorRT IO tensors.
-         * @return true on success.
          */
-        bool createInferenceTensors();
+        void createInferenceTensors();
         /**
          * @brief Run one inference iteration on already prepared input buffers.
-         * @return true if enqueue + synchronization succeeded.
          */
-        bool runInference();
+        void runInference();
         /**
          * @brief Get tensor names by IO mode (input/output).
          */
