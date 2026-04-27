@@ -254,7 +254,7 @@ void InferencePipeline::runInference(){
 
         size_t bytesPerElement = getElementSize(m_DeviceTensorMap[name].getDtype());
         size_t numElements = m_DeviceTensorMap[name].getNumElements();
-        
+
         error = cudaMemPrefetchAsync(
             m_DeviceTensorMap[name].rawPtr(),
             bytesPerElement * numElements,
@@ -345,7 +345,7 @@ void InferencePipeline::runInferencePipeline(bool saveDetsAsFile, bool drawMasks
         Severity::kINFO,
         "Total Compute Time: ",
         duration,
-        '\n'
+        "s\n"
     );
 
     m_logger.logConcatMessage(

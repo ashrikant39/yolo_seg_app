@@ -43,6 +43,7 @@ class Logger : public nvinfer1::ILogger
         template <class ...Ts>
         void logConcatMessage(Severity severity, Ts&&... xs){
             if(severity <= m_loggerSeverity){
+
                 if(severity == nvinfer1::ILogger::Severity::kINTERNAL_ERROR)
                     m_logStream << "[INTERNAL ERROR] ";
 
@@ -54,9 +55,9 @@ class Logger : public nvinfer1::ILogger
                 
                 else
                     m_logStream << "[INFO] ";
-            }
 
-            (m_logStream << ... << std::forward<Ts>(xs));
+                (m_logStream << ... << std::forward<Ts>(xs));
+            }
         }
 
         /**
