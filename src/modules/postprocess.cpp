@@ -306,6 +306,8 @@ void PostProcessor::postProcessOutputs(
             logger.logConcatMessage(Severity::kINFO, "No detections passed the NMS for batch item ", b, "\n");
             continue;
         }
+
+        logger.logConcatMessage(Severity::kINFO, "Number of Detections: ", nmsIndices.size(), '\n');
         
         for (int k : nmsIndices) {
 
