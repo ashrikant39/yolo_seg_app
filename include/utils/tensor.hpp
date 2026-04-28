@@ -16,7 +16,15 @@ class Tensor{
     public:
 
         // Default constructor
-        Tensor(){}
+        Tensor(): 
+            m_trtDtype(nvinfer1::DataType::kFLOAT),
+            m_numElements(0),
+            m_dims{},
+            m_mode(nvinfer1::TensorIOMode::kNONE),
+            m_unqPtr(nullptr) {
+
+                m_dims.nbDims = 0;
+            }
 
         /**
          * @brief Construct a tensor wrapper around contiguous storage.
@@ -124,7 +132,8 @@ class Tensor{
 };
 
 using TensorMap = std::unordered_map<std::string, Tensor<UniquePtrToArray>>;
-using CudaTensorMap = std::unordered_map<std::string, Tensor<CudaUniquePtrToArray>>;
+using DeviceTensorMap = std::unordered_map<std::string, Tensor<UniquePtrToDeviceArray>>;
+using HostTensorMap = std::unordered_map<std::string, Tensor<UniquePtrToHostArray>>;
 
 inline float sigmoid(float x) {
     return 1.f / (1.f + std::exp(-std::max(-50.f, std::min(50.f, x))));

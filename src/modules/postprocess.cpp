@@ -16,7 +16,7 @@ cv::Mat computeInstanceMask(
     int nMaskCoeffs,
     int maskW,
     int maskH,
-    const float* maskCoeffs) {
+    const float *maskCoeffs) {
     
     NVTX_RANGE("INSTANCE_MASK_COMPUTE");
     const int hw = maskH * maskW;
@@ -37,10 +37,61 @@ cv::Mat computeInstanceMask(
 }
 
 
-cv::Mat getRoIMaskFromRaw(const cv::Mat& mask, const cv::Rect2d& boundingBox, size_t maskW, size_t maskH) { 
+cv::Mat computeAllInstanceMasks(
+    const float* protoBatch,
+    const float* boxDataBatch,
+    const std::vector<size_t>& candObjIndexes,
+    const std::vector<int>& nmsIndices,
+    size_t nMaskCoeffs,
+    size_t maskW,
+    size_t maskH,
+    size_t maskStart,
+    size_t nBoxes,
+    size_t nCoeffs) { 
+
+    NVTX_RANGE("computeAllInstanceMasks");
+    size_t totalMasks = nmsIndices.size();
+    cv::Mat coeffMat(totalMasks, nMaskCoeffs, CV_32F);
+    size_t hw = maskH * maskW;
+
+    for (size_t row = 0; row < totalMasks; ++row) {
+        
+        size_t k = nmsIndices[row];
+        size_t objIdx = candObjIndexes[k];
+        
+        const float* coeffSrc = boxDataBatch + idx3(0, objIdx, maskStart, nBoxes, nCoeffs);
+
+        std::memcpy(
+            coeffMat.ptr<float>(row),
+            coeffSrc,
+            nMaskCoeffs * sizeof(float)
+        );
+    }
+
+    cv::Mat protoFlat(nMaskCoeffs, hw, CV_32F, const_cast<float*>(protoBatch));
+    cv::Mat maskLogits;
+
+    cv::gemm(coeffMat, protoFlat, 1.0, cv::Mat(), 0.0, maskLogits); // (N, 32) @ (32, HW) -> (N, HW)
+
+    CV_Assert(maskLogits.isContinuous());
+    CV_Assert(maskLogits.type() == CV_32F);
+
+    float* maskPtr = maskLogits.ptr<float>(0);
+
+    for (size_t i = 0; i < totalMasks * hw ; i++) { 
+        maskPtr[i] = sigmoid(maskPtr[i]);
+    }
+
+    NVTX_POP();
+    return maskLogits;
+}
+
+
+cv::Mat getRoIMaskFromRaw(const cv::Mat& lowResRawMask, const cv::Rect2d& boundingBox, size_t maskW, size_t maskH) {
+
     NVTX_RANGE("ROI_MASK_COMPUTE");
     cv::Mat maskUp;
-    cv::resize(mask, maskUp, cv::Size(maskW, maskH), 0, 0, cv::INTER_LINEAR);
+    cv::resize(lowResRawMask, maskUp, cv::Size(maskW, maskH), 0, 0, cv::INTER_LINEAR);
     cv::Mat binaryMask;
     cv::threshold(maskUp, binaryMask, PostProcessingOptions::MASK_THRESH, 1.0, cv::THRESH_BINARY);
     cv::Mat roiBinaryMask(binaryMask.size(), binaryMask.type(), cv::Scalar(0.0));
@@ -49,8 +100,9 @@ cv::Mat getRoIMaskFromRaw(const cv::Mat& mask, const cv::Rect2d& boundingBox, si
     roiBinaryMask.convertTo(mask8, CV_8U, 255.0);
     NVTX_POP();
     return mask8;
-    
+
 }
+
 
 void drawDetectedMasksOnImage(
     const cv::Mat& image,
@@ -100,6 +152,7 @@ bool getDetections(
     cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     if (contours.empty()) {
+        NVTX_POP();
         return false;
     }
     cv::Rect2d normedBox = normalizeBox(boundingBox, static_cast<double>(imgW), static_cast<double>(imgH));
@@ -126,13 +179,11 @@ PostProcessor::PostProcessor(
 
 
 void PostProcessor::postProcessOutputs(
-    CudaTensorMap& modelOutputMap,
+    HostTensorMap& modelOutputMap,
     const std::vector<fs::path>& batchFileNames,
     Logger& logger,
     bool saveDetsAsFile,
     bool drawMasksOnImage) {
-
-    cudaDeviceSynchronize();
 
     // Lazy allocation of CPU buffers for output tensors.
     // We allocate based on the actual engine output tensor metadata provided at runtime.
@@ -294,10 +345,12 @@ void PostProcessor::postProcessOutputs(
         const fs::path visPath = m_resultsDir / (outStem.string() + "_seg_vis.png");    
         cv::Mat canvas = cv::Mat::zeros(m_imageH, m_imageW, CV_8UC3);
         cv::Mat resizedImg;
-        cv::resize(cv::imread(origImagePath, cv::IMREAD_COLOR), resizedImg, cv::Size(m_imageW, m_imageH));
 
+        if (drawDetectedMasksOnImage) {
+            cv::resize(cv::imread(origImagePath, cv::IMREAD_COLOR), resizedImg, cv::Size(m_imageW, m_imageH));
+        }
+        
         int detId = 0;
-        NVTX_RANGE("GET_MASKS_AND_BOXES_PER_IMAGE");
         
         std::vector<Detection> detections;
         detections.reserve(nmsIndices.size());
@@ -308,9 +361,28 @@ void PostProcessor::postProcessOutputs(
         }
 
         logger.logConcatMessage(Severity::kINFO, "Number of Detections: ", nmsIndices.size(), '\n');
+
         
+        const size_t protoOffset = idx4(b, 0, 0, 0, nMaskCoeffs, maskH, maskW);
+        const size_t boxOffset = idx3(b, 0, 0, nBoxes, nCoeffs);
+
+        cv::Mat instanceMasks = computeAllInstanceMasks(
+            protoData + protoOffset,
+            boxData + boxOffset,
+            candObjIndexes,
+            nmsIndices,
+            nMaskCoeffs,
+            maskW,
+            maskH,
+            maskStart,
+            nBoxes,
+            nCoeffs);
+        
+        NVTX_RANGE("GET_MASKS_AND_BOXES_PER_IMAGE");
+
         for (int k : nmsIndices) {
 
+            NVTX_RANGE("PROCESS_ONE_DETECTION");
             if (detId >= PostProcessingOptions::NMS_MAX_DET) {
                 break;
             }
@@ -320,17 +392,13 @@ void PostProcessor::postProcessOutputs(
             const size_t label = candLabels[k];
             const double objScore = candScores[k];
 
-            std::vector<float> maskCoefficients(nMaskCoeffs);
-            for (size_t j = 0; j < nMaskCoeffs; ++j) {
-                size_t m_idx = idx3(b, objIdx, maskStart + j, nBoxes, nCoeffs);
-                maskCoefficients[j] = boxData[m_idx];
-            }
-
-            const size_t protoOff = idx4(b, 0, 0, 0, nMaskCoeffs, maskH, maskW);
-            cv::Mat instMask = computeInstanceMask(protoData + protoOff, nMaskCoeffs, maskW, maskH, maskCoefficients.data());
-            
+            // size_t maskCoeffOffSet = idx3(b, objIdx, maskStart, nBoxes, nCoeffs);
+            // cv::Mat instMask = computeInstanceMask(protoData + protoOffset, nMaskCoeffs, maskW, maskH, boxData + maskCoeffOffSet);
+            cv::Mat instMask = instanceMasks.row(detId).reshape(1, maskH);
             cv::Mat detMask8 = getRoIMaskFromRaw(instMask, boundingBox, m_imageW, m_imageH);
             Detection det;
+
+            NVTX_POP();
 
             if (!getDetections(detMask8, boundingBox, label, objScore, det)) {
                 continue;
@@ -343,7 +411,6 @@ void PostProcessor::postProcessOutputs(
                 drawDetectedMasksOnImage(resizedImg, maskPath, instMask, m_imageW, m_imageH, boundingBox, label);
             }
             ++detId;
-            
         }
         NVTX_POP();
 

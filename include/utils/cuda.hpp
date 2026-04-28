@@ -50,11 +50,19 @@ do {                                                                      \
 
 
 template <typename T>
-struct CudaDeleter {
-    void operator()(T* ptr) const noexcept {
+struct DevicePtrDeleter {
+    void operator()(T *ptr) const noexcept {
         if (ptr) {
             CUDA_WARN(cudaFree(ptr));
         }
     }
 };
 
+template <typename T>
+struct HostPtrDeleter {
+    void operator()(T *ptr) const noexcept {
+        if (ptr) {
+            CUDA_WARN(cudaFreeHost(ptr));
+        }
+    }
+};
