@@ -205,19 +205,16 @@ void PostProcessor::postProcessOutputs(
     NVTX_POP();
 
     NVTX_RANGE("CopyAndCastToCpu");
-    for (auto& [name, tensor] : modelOutputMap) {
+    for (auto& [m_name, m_tensor] : m_postProcessTensorMap) {
         
-        auto it = m_postProcessTensorMap.find(name);
-        if (it == m_postProcessTensorMap.end()) {
-            continue;
+        const auto& outputTensor = modelOutputMap[m_name];
+
+        if (outputTensor.getDtype() == nvinfer1::DataType::kHALF){            
+            castHalfToFloat(m_tensor.ptr<float>(), outputTensor.ptr<__half>(), outputTensor.getNumElements());
         }
 
-        if (tensor.getDtype() == nvinfer1::DataType::kHALF){            
-            castHalfToFloat(it->second.ptr<float>(), tensor.ptr<__half>(), tensor.getNumElements());
-        }
-
-        else if (tensor.getDtype() == nvinfer1::DataType::kFLOAT) {
-            std::memcpy(it->second.ptr<float>(), tensor.ptr<float>(), tensor.getNumElements() * sizeof(float));
+        else if (outputTensor.getDtype() == nvinfer1::DataType::kFLOAT) {
+            std::memcpy(m_tensor.ptr<float>(), outputTensor.ptr<float>(), outputTensor.getNumElements() * sizeof(float));
         }
         else {
             throw std::runtime_error("GPU Output : Wrong type");
@@ -226,53 +223,63 @@ void PostProcessor::postProcessOutputs(
     }
     NVTX_POP();
 
-    const std::string boxKey = ModelSettings::BOX_FEATURE_KEY;
-    const std::string protoKey = ModelSettings::PROTO_MASK_KEY;
+    // const std::string boxKey = ModelSettings::BOX_FEATURE_KEY;
+    // const std::string protoKey = ModelSettings::PROTO_MASK_KEY;
+    const std::string boxKey = SimpleModelSettings::BOX_KEY;
+    const std::string maskKey = SimpleModelSettings::MASK_KEY;
+    const std::string labelKey = SimpleModelSettings::CLASS_LABEL;
+    const std::string scoreKey = SimpleModelSettings::OBJECTNESS;
 
-    if (!m_postProcessTensorMap.count(boxKey) || !m_postProcessTensorMap.count(protoKey)) {
+
+    if (
+        !m_postProcessTensorMap.count(boxKey)  ||
+        !m_postProcessTensorMap.count(maskKey) ||
+        !m_postProcessTensorMap.count(labelKey) ||
+        !m_postProcessTensorMap.count(scoreKey)
+    ) {
         logger.logConcatMessage(
             Severity::kERROR,
-            "Missing output tensors: need '",
-            boxKey.c_str(),
-            "' and '",
-            protoKey.c_str(),
-            "'\n");
+            "Missing output tensors");
         return;
     }
 
-    const nvinfer1::Dims boxDims = m_postProcessTensorMap[boxKey].getDims();  // [B, NObjects, Box+Feature+Cls], Box+Feature+Cls = nCoeffs
-    const nvinfer1::Dims protoDims = m_postProcessTensorMap[protoKey].getDims(); // [B, nMaskCoeffs, H, W] , nMaskCoeffs = Feature 
+    // const nvinfer1::Dims boxDims = m_postProcessTensorMap[boxKey].getDims();  // [B, NObjects, Box+Feature+Cls], Box+Feature+Cls = nCoeffs
+    // const nvinfer1::Dims protoDims = m_postProcessTensorMap[protoKey].getDims(); // [B, nMaskCoeffs, H, W] , nMaskCoeffs = Feature 
+    const nvinfer1::Dims boxDims = m_postProcessTensorMap[boxKey].getDims(); // [B, NObjects, 4]
+    const nvinfer1::Dims maskDims = m_postProcessTensorMap[maskKey].getDims(); // [B, NObjects, H, W]
 
     const size_t batchSize = static_cast<size_t>(boxDims.d[0]);
     const size_t nBoxes = static_cast<size_t>(boxDims.d[1]);
     const size_t nCoeffs = static_cast<size_t>(boxDims.d[2]);
-    const size_t nMaskCoeffs = static_cast<size_t>(protoDims.d[1]);
-    const size_t maskH = static_cast<size_t>(protoDims.d[2]);
-    const size_t maskW = static_cast<size_t>(protoDims.d[3]);
+    // const size_t nMaskCoeffs = static_cast<size_t>(protoDims.d[1]);
+    const size_t maskH = static_cast<size_t>(maskDims.d[2]);
+    const size_t maskW = static_cast<size_t>(maskDims.d[3]);
 
     const size_t nClsDims = PostProcessingOptions::NUM_CLS_DIMS;
     const size_t maskStart = YoloSegDecodeSettings::MASK_COEFF_START;
     const size_t nCoeffsExpected = nCoeffs - maskStart;
 
-    if (nCoeffsExpected != nMaskCoeffs) {
-        logger.logConcatMessage(
-            Severity::kWARNING,
-            "Mask coeff count (",
-            nCoeffs - maskStart,
-            ") != prototype channels (",
-            nMaskCoeffs,
-            "). Check MASK_COEFF_START / NUM_CLASSES vs engine.\n");
-    }
+    // if (nCoeffsExpected != nMaskCoeffs) {
+    //     logger.logConcatMessage(
+    //         Severity::kWARNING,
+    //         "Mask coeff count (",
+    //         nCoeffs - maskStart,
+    //         ") != prototype channels (",
+    //         nMaskCoeffs,
+    //         "). Check MASK_COEFF_START / NUM_CLASSES vs engine.\n");
+    // }
 
-    if (maskStart + nMaskCoeffs > nCoeffs) {
-        logger.logConcatMessage(Severity::kERROR, "Invalid tensor layout: not enough channels for mask coeffs.\n");
-        return;
-    }
+    // if (maskStart + nMaskCoeffs > nCoeffs) {
+    //     logger.logConcatMessage(Severity::kERROR, "Invalid tensor layout: not enough channels for mask coeffs.\n");
+    //     return;
+    // }
 
     fs::create_directories(m_resultsDir);
 
-    const float* protoData = m_postProcessTensorMap[protoKey].ptr<float>();
-    const float* boxData = m_postProcessTensorMap[boxKey].ptr<float>();
+    const float *boxData = m_postProcessTensorMap[boxKey].ptr<float>();
+    const float *maskData = m_postProcessTensorMap[maskKey].ptr<float>();
+    const float *scoreData = m_postProcessTensorMap[scoreKey].ptr<float>();
+    const float *labelData = m_postProcessTensorMap[labelKey].ptr<float>();
 
     for (size_t b = 0; b < batchSize; ++b) {
 
@@ -293,18 +300,18 @@ void PostProcessor::postProcessOutputs(
         for (size_t i = 0; i < nBoxes; ++i) {
             // Decode box geometry from boxesXYWH.
             // Model outputs are assumed to be in pixel space of the preprocessed input.
-            const float *boxStart = boxData + idx3(b, i, 0, nBoxes, nCoeffs);
-            const float *scoreStart = boxData + idx3(b, i, 4, nBoxes, nCoeffs);
-            const float *clsStart = boxData + idx3(b, i, 5, nBoxes, nCoeffs);
+            const float *currBoxData = boxData + idx3(b, i, 0, nBoxes, nCoeffs);
+            const float *currScoreData = scoreData + idx3(b, i, 0, nBoxes, nCoeffs);
+            const float *currLabelData = labelData + idx3(b, i, 0, nBoxes, nCoeffs);
 
-            const float objectness = *scoreStart;
-            const size_t clsLabel = *clsStart;
+            const float objectness = *currScoreData;
+            const size_t clsLabel = *currLabelData;
             
             // OpenCV NMS requires boxes to be of double or int.
-            const double x1 = boxStart[0];
-            const double y1 = boxStart[1];
-            const double x2 = boxStart[2];
-            const double y2 = boxStart[3];
+            const double x1 = currBoxData[0];
+            const double y1 = currBoxData[1];
+            const double x2 = currBoxData[2];
+            const double y2 = currBoxData[3];
 
             if ( !validateBox(x1, x2, y1, y2, static_cast<double>(m_imageW), static_cast<double>(m_imageH)) ){
                 continue;
@@ -319,6 +326,7 @@ void PostProcessor::postProcessOutputs(
                 candScores.push_back(objectness);
                 candLabels.push_back(clsLabel);
             }
+            
         }
         NVTX_POP();
 
@@ -363,20 +371,20 @@ void PostProcessor::postProcessOutputs(
         logger.logConcatMessage(Severity::kINFO, "Number of Detections: ", nmsIndices.size(), '\n');
 
         
-        const size_t protoOffset = idx4(b, 0, 0, 0, nMaskCoeffs, maskH, maskW);
-        const size_t boxOffset = idx3(b, 0, 0, nBoxes, nCoeffs);
+        // const size_t protoOffset = idx4(b, 0, 0, 0, nMaskCoeffs, maskH, maskW);
+        // const size_t boxOffset = idx3(b, 0, 0, nBoxes, nCoeffs);
 
-        cv::Mat instanceMasks = computeAllInstanceMasks(
-            protoData + protoOffset,
-            boxData + boxOffset,
-            candObjIndexes,
-            nmsIndices,
-            nMaskCoeffs,
-            maskW,
-            maskH,
-            maskStart,
-            nBoxes,
-            nCoeffs);
+        // cv::Mat instanceMasks = computeAllInstanceMasks(
+        //     protoData + protoOffset,
+        //     boxData + boxOffset,
+        //     candObjIndexes,
+        //     nmsIndices,
+        //     nMaskCoeffs,
+        //     maskW,
+        //     maskH,
+        //     maskStart,
+        //     nBoxes,
+        //     nCoeffs);
         
         NVTX_RANGE("GET_MASKS_AND_BOXES_PER_IMAGE");
 
@@ -394,7 +402,8 @@ void PostProcessor::postProcessOutputs(
 
             // size_t maskCoeffOffSet = idx3(b, objIdx, maskStart, nBoxes, nCoeffs);
             // cv::Mat instMask = computeInstanceMask(protoData + protoOffset, nMaskCoeffs, maskW, maskH, boxData + maskCoeffOffSet);
-            cv::Mat instMask = instanceMasks.row(detId).reshape(1, maskH);
+            float *currMaskData = const_cast<float*>(maskData + idx4(b, objIdx, 0, 0, nBoxes, maskH, maskW));
+            cv::Mat instMask(maskW, maskH, CV_32F, currMaskData);
             cv::Mat detMask8 = getRoIMaskFromRaw(instMask, boundingBox, m_imageW, m_imageH);
             Detection det;
 

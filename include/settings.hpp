@@ -12,6 +12,15 @@ struct ModelSettings{
     static constexpr const char* PROTO_MASK_KEY = "output1";
 };
 
+
+struct SimpleModelSettings{
+    static constexpr const char* BOX_KEY = "boxes";
+    static constexpr const char* MASK_KEY = "masks";
+    static constexpr const char* OBJECTNESS = "objectness";
+    static constexpr const char* CLASS_LABEL = "classlabel";
+};
+
+
 struct ProcessingSettings{
     static constexpr ComputeDataType POSTPROCESSING_DTYPE = ComputeDataType::FLOAT32;
 };
