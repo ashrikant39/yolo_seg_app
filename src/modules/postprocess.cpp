@@ -300,9 +300,9 @@ void PostProcessor::postProcessOutputs(
         for (size_t i = 0; i < nBoxes; ++i) {
             // Decode box geometry from boxesXYWH.
             // Model outputs are assumed to be in pixel space of the preprocessed input.
-            const float *currBoxData = boxData + idx3(b, i, 0, nBoxes, nCoeffs);
-            const float *currScoreData = scoreData + idx3(b, i, 0, nBoxes, nCoeffs);
-            const float *currLabelData = labelData + idx3(b, i, 0, nBoxes, nCoeffs);
+            const float *currBoxData = boxData + idx3(b, i, 0, nBoxes, 4);
+            const float *currScoreData = scoreData + idx3(b, i, 0, nBoxes, 1);
+            const float *currLabelData = labelData + idx3(b, i, 0, nBoxes, 1);
 
             const float objectness = *currScoreData;
             const size_t clsLabel = *currLabelData;
@@ -326,7 +326,7 @@ void PostProcessor::postProcessOutputs(
                 candScores.push_back(objectness);
                 candLabels.push_back(clsLabel);
             }
-            
+
         }
         NVTX_POP();
 
@@ -403,7 +403,7 @@ void PostProcessor::postProcessOutputs(
             // size_t maskCoeffOffSet = idx3(b, objIdx, maskStart, nBoxes, nCoeffs);
             // cv::Mat instMask = computeInstanceMask(protoData + protoOffset, nMaskCoeffs, maskW, maskH, boxData + maskCoeffOffSet);
             float *currMaskData = const_cast<float*>(maskData + idx4(b, objIdx, 0, 0, nBoxes, maskH, maskW));
-            cv::Mat instMask(maskW, maskH, CV_32F, currMaskData);
+            cv::Mat instMask(maskH, maskW, CV_32F, currMaskData);
             cv::Mat detMask8 = getRoIMaskFromRaw(instMask, boundingBox, m_imageW, m_imageH);
             Detection det;
 
