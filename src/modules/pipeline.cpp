@@ -179,24 +179,20 @@ InferencePipeline::InferencePipeline(
             }
         }
         NVTX_POP();
+
+        nvtxNameCuStreamA(m_stream, "InferenceStream");
 }
 
 
 void InferencePipeline::runInference(){
 
+    NVTX_RANGE("SetupInference");
     std::string inputName = getTensorNames(nvinfer1::TensorIOMode::kINPUT)[0];
     std::vector<std::string> outputNames = getTensorNames(nvinfer1::TensorIOMode::kOUTPUT);
 
-    cudaStream_t stream;
-    cudaError_t error = cudaStreamCreate(&stream);
-
-    if(error != cudaSuccess){
-        throw std::runtime_error("cudaStreamCreate Failed: " + std::string(cudaGetErrorString(error)) + '\n');
-    }
-
     size_t bytesPerElement = getElementSize(m_HostTensorMap[inputName].getDtype());
     size_t numInputElements = m_HostTensorMap[inputName].getNumElements();
-
+    NVTX_POP();
     // error = cudaMemPrefetchAsync(
     //     m_DeviceTensorMap[inputName].rawPtr(),
     //     bytesPerElement * numInputElements,
@@ -204,31 +200,30 @@ void InferencePipeline::runInference(){
     //     0,
     //     stream
     // );
+    cudaError_t error;
 
+    NVTX_RANGE("HostToDeviceTransfer_1");
     error = cudaMemcpyAsync(
         m_DeviceTensorMap[inputName].rawPtr(),
         m_HostTensorMap[inputName].rawPtr(),
         bytesPerElement * numInputElements,
         cudaMemcpyHostToDevice,
-        stream
+        m_stream.get()
     );
+    NVTX_POP();
 
     if(error != cudaSuccess){
         throw std::runtime_error("cudaMemPrefetchAsync from cpu to gpu Failed: " + std::string(cudaGetErrorString(error)) + '\n');
     }
 
     NVTX_RANGE("EnqueueV3");
-    if ( !m_context->enqueueV3(stream) ) {
+    if ( !m_context->enqueueV3(m_stream.get()) ) {
         m_logger.log(Severity::kERROR, "EnqueueV3 Failed.");
         throw std::runtime_error("EnqueueV3 Failed: \n");
     }
     NVTX_POP();
 
-    error = cudaStreamSynchronize(stream);
-    if(error != cudaSuccess){
-        throw std::runtime_error("Stream Synchronization Failed Before gpu->cpu. " + std::string(cudaGetErrorString(error)) + '\n');
-    }
-
+    NVTX_RANGE("CompleteDeviceToHostTransfer");
     for (const auto& name : outputNames) {
 
         size_t bytesPerElement = getElementSize(m_DeviceTensorMap[name].getDtype());
@@ -241,12 +236,13 @@ void InferencePipeline::runInference(){
         //     0,
         //     stream
         // );
-
+        NVTX_RANGE("DeviceToHostTransfer_1");
         error = cudaMemcpyAsync(
             m_HostTensorMap[name].rawPtr(),
             m_DeviceTensorMap[name].rawPtr(),
             bytesPerElement * numElements,
-            cudaMemcpyDeviceToHost,stream
+            cudaMemcpyDeviceToHost,
+            m_stream.get()
         );
         
         if(error != cudaSuccess){
@@ -258,20 +254,19 @@ void InferencePipeline::runInference(){
                 '\n'
             );
         }
+        NVTX_POP();
     }
+    NVTX_POP();
 
-    error = cudaStreamSynchronize(stream);
+    NVTX_RANGE("StreamSync2");
+    error = cudaStreamSynchronize(m_stream.get());
     
     if(error != cudaSuccess){
         std::cerr << "Stream Synchronization Failed." << std::endl;
         throw std::runtime_error("Stream Synchronization Failed After CPU->GPU." + std::string(cudaGetErrorString(error)) + '\n');
     }
+    NVTX_POP();
 
-    error = cudaStreamDestroy(stream);
-    
-    if(error != cudaSuccess){
-        throw std::runtime_error("Stream Destruction Failed." + std::string(cudaGetErrorString(error)) + '\n');
-    }
 }
 
 
