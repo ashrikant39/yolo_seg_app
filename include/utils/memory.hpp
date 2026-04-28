@@ -8,7 +8,10 @@ template <typename T>
 using UniquePtrToArray = std::unique_ptr<T[]>;
 
 template <typename T>
-using CudaUniquePtrToArray = std::unique_ptr<T[], CudaDeleter<T>>;
+using UniquePtrToDeviceArray = std::unique_ptr<T[], DevicePtrDeleter<T>>;
+
+template <typename T>
+using UniquePtrToHostArray = std::unique_ptr<T[], HostPtrDeleter<T>>;
 
 template <template <typename> class PtrType>
 struct PtrFactory;
@@ -22,12 +25,23 @@ struct PtrFactory<UniquePtrToArray> {
 };
 
 template <>
-struct PtrFactory<CudaUniquePtrToArray> {
+struct PtrFactory<UniquePtrToDeviceArray> {
     template <typename T>
-    static CudaUniquePtrToArray<T> make(std::size_t numElements) {
+    static UniquePtrToDeviceArray<T> make(std::size_t numElements) {
         void* ptr = nullptr;
-        CUDA_THROW(cudaMallocManaged(&ptr, sizeof(T) * numElements));
-        return CudaUniquePtrToArray<T>(static_cast<T*>(ptr));
+        CUDA_THROW(cudaMalloc(&ptr, sizeof(T) * numElements));
+        return UniquePtrToDeviceArray<T>(static_cast<T*>(ptr));
+    }
+};
+
+
+template <>
+struct PtrFactory<UniquePtrToHostArray> {
+    template <typename T>
+    static UniquePtrToHostArray<T> make(std::size_t numElements) {
+        void* ptr = nullptr;
+        CUDA_THROW(cudaMallocHost(&ptr, sizeof(T) * numElements));
+        return UniquePtrToHostArray<T>(static_cast<T*>(ptr));
     }
 };
 

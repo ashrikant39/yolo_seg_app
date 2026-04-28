@@ -64,36 +64,6 @@ std::vector<std::string> InferencePipeline::getTensorNames(nvinfer1::TensorIOMod
 }
 
 
-void InferencePipeline::createInferenceTensors(){
-
-    for(int32_t i = 0; i < m_engine->getNbIOTensors(); i++){
-
-        using DeviceTensor = typename decltype(m_DeviceTensorMap)::mapped_type;
-        NVTX_RANGE("CreateOneTensor");
-        const char* name = m_engine->getIOTensorName(i);
-
-        // m_DeviceTensorMap[name] = {
-        //     m_engine->getTensorDataType(name),
-        //     m_engine->getTensorShape(name),
-        //     m_engine->getTensorIOMode(name)
-        // };
-
-        auto [it, inserted] = m_DeviceTensorMap.emplace(
-        name,
-        DeviceTensor(
-            m_engine->getTensorDataType(name),
-            m_engine->getTensorShape(name),
-            m_engine->getTensorIOMode(name))
-        );
-        NVTX_POP();
-
-        if (!inserted) {
-            throw std::runtime_error("Duplicate tensor name encountered: " + std::string(name));
-        }
-    }
-}
-
-
 void InferencePipeline::logModelInfo(){
 
     for(int idx=0; idx<m_engine->getNbIOTensors(); idx++){
@@ -169,8 +139,9 @@ InferencePipeline::InferencePipeline(
             throw std::runtime_error("Failed to create TensorRT engine.");
         }
         
-        NVTX_RANGE("create_tensors");
-        createInferenceTensors();
+        NVTX_RANGE("ALLOCATE_TENSORS");
+        allocateTensorMemory(m_HostTensorMap);
+        allocateTensorMemory(m_DeviceTensorMap);
         NVTX_POP();
 
         if(logModelInformation){
@@ -188,7 +159,7 @@ InferencePipeline::InferencePipeline(
             inputDims.d[2],
             inputDims.d[3],
             m_logger,
-            m_DeviceTensorMap[inputName].ptr<cv::float16_t>()
+            m_HostTensorMap[inputName].ptr<cv::float16_t>() // I have currently hardcoded to use float16 input
         );
         NVTX_POP();
         
@@ -223,14 +194,22 @@ void InferencePipeline::runInference(){
         throw std::runtime_error("cudaStreamCreate Failed: " + std::string(cudaGetErrorString(error)) + '\n');
     }
 
-    size_t bytesPerElement = getElementSize(m_DeviceTensorMap[inputName].getDtype());
-    size_t numInputElements = m_DeviceTensorMap[inputName].getNumElements();
+    size_t bytesPerElement = getElementSize(m_HostTensorMap[inputName].getDtype());
+    size_t numInputElements = m_HostTensorMap[inputName].getNumElements();
 
-    error = cudaMemPrefetchAsync(
+    // error = cudaMemPrefetchAsync(
+    //     m_DeviceTensorMap[inputName].rawPtr(),
+    //     bytesPerElement * numInputElements,
+    //     {cudaMemLocationType::cudaMemLocationTypeDevice, 0},
+    //     0,
+    //     stream
+    // );
+
+    error = cudaMemcpyAsync(
         m_DeviceTensorMap[inputName].rawPtr(),
+        m_HostTensorMap[inputName].rawPtr(),
         bytesPerElement * numInputElements,
-        {cudaMemLocationType::cudaMemLocationTypeDevice, 0},
-        0,
+        cudaMemcpyHostToDevice,
         stream
     );
 
@@ -239,7 +218,7 @@ void InferencePipeline::runInference(){
     }
 
     NVTX_RANGE("EnqueueV3");
-    if(!m_context->enqueueV3(stream)){
+    if ( !m_context->enqueueV3(stream) ) {
         m_logger.log(Severity::kERROR, "EnqueueV3 Failed.");
         throw std::runtime_error("EnqueueV3 Failed: \n");
     }
@@ -255,12 +234,19 @@ void InferencePipeline::runInference(){
         size_t bytesPerElement = getElementSize(m_DeviceTensorMap[name].getDtype());
         size_t numElements = m_DeviceTensorMap[name].getNumElements();
 
-        error = cudaMemPrefetchAsync(
+        // error = cudaMemPrefetchAsync(
+        //     m_DeviceTensorMap[name].rawPtr(),
+        //     bytesPerElement * numElements,
+        //     {cudaMemLocationType::cudaMemLocationTypeHost, 0},
+        //     0,
+        //     stream
+        // );
+
+        error = cudaMemcpyAsync(
+            m_HostTensorMap[name].rawPtr(),
             m_DeviceTensorMap[name].rawPtr(),
             bytesPerElement * numElements,
-            {cudaMemLocationType::cudaMemLocationTypeHost, 0},
-            0,
-            stream
+            cudaMemcpyDeviceToHost,stream
         );
         
         if(error != cudaSuccess){
@@ -314,7 +300,8 @@ void InferencePipeline::runInferencePipeline(bool saveDetsAsFile, bool drawMasks
                 batchIdx,
                 m_logger,
                 VideoOptions::NORM_FACTOR_ADD_TO_SCALED,
-                VideoOptions::NORM_FACTOR_SCALING_MUL);
+                VideoOptions::NORM_FACTOR_SCALING_MUL
+            );
             NVTX_POP();
             
             NVTX_RANGE("Inference");
@@ -322,7 +309,7 @@ void InferencePipeline::runInferencePipeline(bool saveDetsAsFile, bool drawMasks
             NVTX_POP();
 
             NVTX_RANGE("PostProcess");
-            m_postProcessor->postProcessOutputs(m_DeviceTensorMap, batchPaths, m_logger, saveDetsAsFile, drawMasksOnImage);
+            m_postProcessor->postProcessOutputs(m_HostTensorMap, batchPaths, m_logger, saveDetsAsFile, drawMasksOnImage);
             NVTX_POP();
 
         } catch (const std::exception& e) { 

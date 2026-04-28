@@ -48,7 +48,29 @@ class InferencePipeline{
         /**
          * @brief Allocate and register TensorRT IO tensors.
          */
-        void createInferenceTensors();
+        template <typename TensorMapType>
+        void allocateTensorMemory(TensorMapType& tensorMap) {
+
+            using MapType = std::remove_reference_t<TensorMapType>;
+            using TensorType = typename MapType::mapped_type;
+
+            for(int32_t i = 0; i < m_engine->getNbIOTensors(); i++){
+
+                const char* name = m_engine->getIOTensorName(i);
+
+                auto [it, inserted] = tensorMap.emplace(
+                name,
+                TensorType(
+                    m_engine->getTensorDataType(name),
+                    m_engine->getTensorShape(name),
+                    m_engine->getTensorIOMode(name))
+                );
+
+                if (!inserted) {
+                    throw std::runtime_error("Duplicate tensor name encountered: " + std::string(name));
+                }
+            }
+        }
         /**
          * @brief Run one inference iteration on already prepared input buffers.
          */
@@ -81,8 +103,8 @@ class InferencePipeline{
         std::unique_ptr<nvinfer1::IRuntime> m_runtime;
         std::unique_ptr<nvinfer1::ICudaEngine> m_engine;
         std::unique_ptr<nvinfer1::IExecutionContext> m_context;
-        CudaTensorMap m_DeviceTensorMap;
-        nvinfer1::DataType _computeTypeInference;
+        DeviceTensorMap m_DeviceTensorMap;
+        HostTensorMap m_HostTensorMap;
         std::unique_ptr<ImageBatchLoader> m_batchLoader;
         std::unique_ptr<PostProcessor> m_postProcessor;
 };

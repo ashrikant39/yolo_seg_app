@@ -1,6 +1,6 @@
 # Usage (CLI + C++ API)
 
-> Build dependency note (Ubuntu): install TensorRT/OpenCV/Eigen packages first (see `README.md`), then configure/build with CMake.
+> Build dependency note (Ubuntu): install TensorRT/OpenCV packages first (see `README.md`), then configure/build with CMake.
 
 ## CLI
 

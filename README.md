@@ -12,7 +12,6 @@ The project is currently in progress; the CLI supports **folder (batched) infere
 - **NVIDIA TensorRT**: loads a serialized `.engine`, creates an execution context, binds tensor addresses, and runs inference.
 - **CUDA**: manages the CUDA stream used by TensorRT and handles FP16 unified memory prefetching.
 - **OpenCV**: image loading (`imread`), preprocessing (`blobFromImage`), NMS (`cv::dnn::NMSBoxes`), and visualization/output writing.
-- **Eigen**: CPU-side tensor view helpers (used for decoding via `slice`/`chip`).
 - **cxxopts**: command-line argument parsing.
 
 ## Outputs
