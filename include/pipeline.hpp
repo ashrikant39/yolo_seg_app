@@ -107,6 +107,7 @@ class InferencePipeline{
         HostTensorMap m_HostTensorMap;
         std::unique_ptr<ImageBatchLoader> m_batchLoader;
         std::unique_ptr<PostProcessor> m_postProcessor;
+        CudaStream m_stream{};
 };
 
 
