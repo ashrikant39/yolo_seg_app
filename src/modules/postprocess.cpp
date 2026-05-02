@@ -348,13 +348,13 @@ void PostProcessor::postProcessOutputs(
             PostProcessingOptions::NMS_MAX_DET);
         NVTX_POP();
         
+        NVTX_RANGE("AfterNMS");
         const fs::path& origImagePath = batchFileNames[b];
         const fs::path& outStem = batchFileNames[b].stem();
-        const fs::path visPath = m_resultsDir / (outStem.string() + "_seg_vis.png");    
-        cv::Mat canvas = cv::Mat::zeros(m_imageH, m_imageW, CV_8UC3);
         cv::Mat resizedImg;
 
-        if (drawDetectedMasksOnImage) {
+        if (drawMasksOnImage) {
+            logger.log(Severity::kINFO, "Drawing Masks on the Images.\n");
             cv::resize(cv::imread(origImagePath, cv::IMREAD_COLOR), resizedImg, cv::Size(m_imageW, m_imageH));
         }
         
@@ -367,9 +367,11 @@ void PostProcessor::postProcessOutputs(
             logger.logConcatMessage(Severity::kINFO, "No detections passed the NMS for batch item ", b, "\n");
             continue;
         }
+        NVTX_POP();
 
+        NVTX_RANGE("LogConcatMessage");
         logger.logConcatMessage(Severity::kINFO, "Number of Detections: ", nmsIndices.size(), '\n');
-
+        NVTX_POP();
         
         // const size_t protoOffset = idx4(b, 0, 0, 0, nMaskCoeffs, maskH, maskW);
         // const size_t boxOffset = idx3(b, 0, 0, nBoxes, nCoeffs);
@@ -429,7 +431,7 @@ void PostProcessor::postProcessOutputs(
             NVTX_RANGE("SERIALIZE_DETECTIONS");
             std::vector<uint8_t> bytes = serializeDetectionsToByteArray(detections);
             NVTX_POP();
-            const fs::path detFilePath = m_resultsDir / (outStem.string() + "_detection_" + ".bin");
+            const fs::path detFilePath = m_resultsDir / (outStem.string() + "_detection" + ".bin");
 
             std::ofstream detFile(detFilePath, std::ios::out | std::ios::binary);
 
