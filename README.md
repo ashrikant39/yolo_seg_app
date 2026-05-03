@@ -2,8 +2,8 @@
 
 TensorRT + CUDA + OpenCV application for running YOLO-seg style models and decoding:
 
-- detection boxes (NMS)
-- instance segmentation masks (prototype + mask coefficients)
+- detection boxes (after applying NMS from OpenCV)
+- instance segmentation masks
 
 The project is currently in progress; the CLI supports **folder (batched) inference**.
 
@@ -20,19 +20,15 @@ The model files ("last_bs1.engine" and "last_bs1_nms_modified_fp32.engine") can 
 
 For each input image, the post-processor writes (to `--saveDirPath` / `saveDirPath`):
 
-- `<image_stem>_seg_vis.png`: visualization overlay of predicted masks
-- `<image_stem>_det<i>_mask.png`: raw instance masks for each selected detection `i` (after NMS)
-
-## Environment variables
-
-No environment variables are required for a standard Ubuntu apt-based setup.
-See: [`docs/ENV_VARS.md`](docs/ENV_VARS.md)
+- `<image_stem>_detection.bin`: A binary file containing all the detections.
+- `<image_stem>_det<i>_mask.jpg`: raw instance masks for each selected detection `i` (after NMS)
 
 ## Post-processing assumptions
 
 See: [`docs/POSTPROCESS.md`](docs/POSTPROCESS.md)
 
 ## Installation
+Refer to [`docs/install.md`](docs/install.md) for instructions on installation of packages.
 
 ### Prerequisites
 
@@ -46,7 +42,7 @@ You need:
 
 ### Ubuntu 22.04 installation commands
 
-The following commands match your TensorRT 10.0.0 + CUDA 12.4 setup:
+The following commands match your TensorRT 10.16.1.11 + CUDA 13.0 setup for a basic installation:
 
 ```bash
 sudo apt-get update

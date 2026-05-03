@@ -4,13 +4,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # === Find OpenCV
-if(DEFINED ENV{OPENCV_CUDA_INSTALL_PATH})
+if(DEFINED ENV{OPENCV_INSTALL_PATH})
     set(OpenCV_DIR
-        "$ENV{OPENCV_CUDA_INSTALL_PATH}/lib/cmake/opencv4")
+        "$ENV{OPENCV_INSTALL_PATH}/lib/cmake/opencv4")
 else()
     message(FATAL_ERROR
-        "OPENCV_CUDA_INSTALL_PATH environment variable not set")
+        "OPENCV_INSTALL_PATH environment variable not set")
 endif()
+
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 

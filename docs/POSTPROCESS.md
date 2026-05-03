@@ -2,31 +2,21 @@
 
 This repository’s post-processor expects a YOLO-seg-like TensorRT engine with:
 
-- a box/detection output tensor named `output0` (see `include/settings.hpp`)
-- a prototype mask output tensor named `output1` (see `include/settings.hpp`)
+- a box output tensor named `boxes` (see `SimpleModelSettings` [`include/settings.hpp`](../include/settings.hpp))
+- a mask output tensor named `masks`
+- a objectness socre tensor named `objectness`
+- a class label tensor named `classlabel`
 
-See: `include/settings.hpp`
+See: [`modify_onnx.py`](../helpers/modify_onnx.py) to modify the onnx file returned from Ultralytics YOLO to generate a modified onnx file with the above outputs instead of the default output  tensors.
 
 ## Expected tensor interpretation
 
 The current decoder assumes:
 
-- `output0`: rank-4, `[B, N, C, 1]`
-  - first 4 values per row are box parameters (`cx, cy, w, h` in model input pixels by default)
-  - remaining values contain objectness/classes (depending on `MASK_COEFF_START`) and then mask coefficients
-- `output1`: rank-4, `[B, nm, H, W]`
-  - these are prototype masks
-
-Instance mask is computed from:
-
-- coefficients from the detection row
-- prototypes from `output1`
-
-Then the mask is:
-
-1. sigmoid + threshold
-2. resized to the model input resolution
-3. saved and/or overlaid in the visualization image
+- `boxes`: rank-3, `[B, NObjects, 4]`
+- `masks`: rank-4, `[B, NObjects, H, W]`
+- `objectness`: rank-3 `[B, NObjects, 1]`
+- `classlabel`: rank-3 `[B, NObjects, 1]`
 
 ## Tuning thresholds
 
