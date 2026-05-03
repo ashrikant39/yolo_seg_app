@@ -418,7 +418,7 @@ void PostProcessor::postProcessOutputs(
             detections.push_back(std::move(det));
 
             if (drawMasksOnImage) {
-                const fs::path maskPath = m_resultsDir / (outStem.string() + "_det" + std::to_string(detId) + "_mask.png");
+                const fs::path maskPath = m_resultsDir / (outStem.string() + "_det" + std::to_string(detId) + "_mask.jpg");
                 drawDetectedMasksOnImage(resizedImg, maskPath, instMask, m_imageW, m_imageH, boundingBox, label);
             }
             ++detId;

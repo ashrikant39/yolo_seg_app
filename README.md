@@ -7,6 +7,8 @@ TensorRT + CUDA + OpenCV application for running YOLO-seg style models and decod
 
 The project is currently in progress; the CLI supports **folder (batched) inference**.
 
+The model files ("last_bs1.engine" and "last_bs1_nms_modified_fp32.engine") can be downloaded from [Asset Folder.](https://drive.google.com/drive/folders/1om3BMPzTnvqPSztqVBbbErkvHvNLsRlj?usp=drive_link)
+
 ## What this repo uses
 
 - **NVIDIA TensorRT**: loads a serialized `.engine`, creates an execution context, binds tensor addresses, and runs inference.
