@@ -6,7 +6,6 @@ coc-settings.json
 .cache/
 **/*.out
 **/*.log
-*.sh
 dumps/
 commands/
 tests/
@@ -16,3 +15,4 @@ logs/
 **/*.nsys-rep
 **/*.sqlite
 **/*.csv
+scripts/
