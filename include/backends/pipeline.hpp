@@ -27,7 +27,7 @@ using namespace std::chrono_literals;
  *
  * The object is intended to live for the full duration of an inference session.
  */
-class Pipeline {
+class InferencePipeline {
     
     public:
 
@@ -41,7 +41,7 @@ class Pipeline {
          * @param saveDetsAsFile If true, saves each detected object as a .bin file.
          * @param drawMasksOnImage If true, draws the masks on the image.
          */
-        Pipeline(
+        InferencePipeline(
             const fs::path& engineFilePath, 
             const fs::path& logFilePath,
             const fs::path& videoDirPath,
@@ -100,7 +100,7 @@ class Pipeline {
         /**
          * @brief Run the full pipeline over all image batches.
          */
-        void runPipeline(bool saveDetsAsFile, bool drawMasksOnImage);
+        void runInferencePipeline(bool saveDetsAsFile, bool drawMasksOnImage);
 
         /**
          * @brief Copy Data to PostProcessing Tensors to run postprocessing.

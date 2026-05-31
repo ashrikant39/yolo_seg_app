@@ -49,14 +49,18 @@ find_library(NVONNXPARSER_LIB nvonnxparser HINTS ${TENSORRT_LIBRARY_HINTS} REQUI
 find_package(cxxopts REQUIRED)
 
 # Collect all .cpp files in the src directory
-file(GLOB MODULES "${CMAKE_SOURCE_DIR}/src/modules/*.cpp")
-file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
+file(GLOB_RECURSE PREPROCESS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/preprocess/*.cpp")
+file(GLOB_RECURSE PIPELINES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/pipelines/*.cpp")
+file(GLOB_RECURSE POSTPROCESS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/postprocess/*.cpp")
+file(GLOB_RECURSE SINKS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/sinks/*.cpp")
+file(GLOB_RECURSE UTILS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/utils/*.cpp")
+file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/main.cpp")
 
 # === Project Include Dir ===
 include_directories("${CMAKE_SOURCE_DIR}/include")
 
 # Main Executable
-add_executable(yoloSegApp ${SOURCES} ${MODULES})
+add_executable(yoloSegApp ${SOURCES} ${PREPROCESS} ${PIPELINES} ${POSTPROCESS} ${SINKS} ${UTILS})
 set_target_properties(yoloSegApp PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )

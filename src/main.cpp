@@ -1,8 +1,22 @@
 #include <iostream>
 #include <filesystem>
 #include <string>
-#include "pipeline.hpp"
 #include <cxxopts.hpp>
+
+#include "source/config/FrameSourceConfig.hpp"
+#include "backends/config/InferenceBackendConfig.hpp"
+#include "logging/BaseLogger.hpp"
+#include "memory_management/MemoryManager.hpp"
+#include "pre_process/config/PreProcessorConfig.hpp"
+#include "post_process/config/PostProcessorConfig.hpp"
+#include "sinks/config/ResultSinkConfig.hpp"
+#include "AppSettings.hpp"
+
+#include "source/factory/FrameSourceFactory.hpp"
+#include "backends/factory/InferenceBackendFactory.hpp"
+#include "pre_process/factory/PreProcessorFactory.hpp"
+#include "post_process/factory/PostProcessFactory.hpp"
+#include "sinks/factory/ResultSinkFactory.hpp"
 
 namespace fs = std::filesystem;
 
@@ -86,10 +100,88 @@ int main(int argc, const char* argv[]){
                 return 1;
             }
         }
+
+        FrameSourceConfig inputCfg {
+            .frameSourceType = Source::FOLDER,
+            .sourcePath = videoDirPath,
+            .imgHeight = 512,
+            .imgWidth = 1024,
+            .batchSize = 1
+        };
+
+        InferenceBackendConfig inferCfg {
+            .inferBackend = BackendType::YoloSegTRT,
+            .modelType = ModelType::YOLO_SEGMENTATION,
+            .processDevice = ProcessDevice::PREFER_CPU,
+            .modelFilePath = engineFileName
+        };
+
+        BaseLogger baseLogger(logFilePath);
+        MemoryManager manager(
+            {
+                TensorGroup::PinnedInput,
+                TensorGroup::PinnedOutput,
+                TensorGroup::HostPostProcessOutput
+            }
+        );
+
+        PreProcessorConfig preprocessCfg {
+            .modelType = ModelType::YOLO_SEGMENTATION,
+            .preferredDevice = ProcessDevice::PREFER_CPU,
+            .rgbOrdering = ChannelOrder::BGR,
+            .resizeHeight = 512,
+            .resizeWidth = 1024,
+            .n_channels = 3,
+            .outputDtype = DType::Float16,
+            .scalingFactor = 1.0f/255.0f
+        };
+
+        PostProcessorConfig postprocessCfg {
+            .outputInfos = {
+                {
+                    SimplifiedYoloSettings::BOX_KEY,
+                    {Shape{{1, 300, 4}}, DType::Float32}
+                },
+
+                {
+                    SimplifiedYoloSettings::MASK_KEY,
+                    {Shape{{1, 300, 128, 256}}, DType::Float32}
+                },
+
+                {
+                    SimplifiedYoloSettings::CLASS_LABEL,
+                    {Shape{{1, 300, 1}}, DType::Float32}
+                },
+
+                {
+                    SimplifiedYoloSettings::OBJECTNESS,
+                    {Shape{{1, 300, 1}}, DType::Float32}
+                }
+
+            },
+            .modelType = ModelType::YOLO_SEGMENTATION,
+            .outputType = OutputType::YOLO_MODIFIED_SEGMENTATION,
+            .preferedDevice = ProcessDevice::PREFER_CPU,
+            .boxStart = 0,
+            .maskStart = 0,
+            .classStart = 0,
+            .objectnessStart = 0
+
+        };
+
+        ResultSinkConfig resultCfg {
+            .sinkMode = ResultSinkMode::SAVE_DETECTIONS,
+            .saveMode = SaveDetectionMode::NORMALIZED,
+        };
+
+        std::unique_ptr<FrameSource> source = createFrameSource(inputCfg);
+        std::unique_ptr<PreProcessor> preprocessor = createPreProcessor(preprocessCfg);
+        std::unique_ptr<InferenceBackend> infer = createInferenceBackend(inferCfg, baseLogger);
+        std::unique_ptr<PostProcessor> postprocessor = createPostProcessor(postprocessCfg);
+        std::unique_ptr<ResultSink> sink = createResultSink(config);
+
         
-        InferencePipeline pipeline(engineFileName, logFilePath, videoDirPath, saveDirPath, logModelInfo);
-        pipeline.runInferencePipeline(saveDetsAsFile, drawMasksOnImage);
-        
+
         return 0;
     }
     catch(const cxxopts::exceptions::exception& e) {
