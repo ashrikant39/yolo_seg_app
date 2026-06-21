@@ -1,49 +1,72 @@
 #include "pre_process/modes/YoloSegCpuPreProcessor.hpp"
+#include "pre_process/utils/PreProcessUtils.hpp"
+#include "AppSettings.hpp"
+
 
 YoloSegCpuPreProcessor::YoloSegCpuPreProcessor(const PreProcessorConfig& config):
-    m_scale(config.scalingFactor),
-    m_mean(config.mean),
-    m_isBGR(config.rgbOrdering == ChannelOrder::BGR),
-    m_outImgH(config.resizeHeight),
-    m_outImgW(config.resizeWidth) {
+    m_scale(config.imgScalingFactor),
+    m_mean(config.imgMean),
+    m_isBGR(config.imgRgbOrdering == ChannelOrderType::BGR),
+    m_outImgH(config.imgResizeHeight),
+    m_outImgW(config.imgResizeWidth),
+    m_dtype(config.outputDataType) {
 
-        if (config.ndimsInput != 4) {
-            throw std::runtime_error("Incorrect ndimsInput for YoloSegCpuPreProcessor" + std::to_string(config.ndimsInput) + '\n');
+        if (std::find(
+            YoloSegCpuPreProcessorSettings::supportedTypes.begin(),
+            YoloSegCpuPreProcessorSettings::supportedTypes.end(),
+            m_dtype) == YoloSegCpuPreProcessorSettings::supportedTypes.end()) {
+            throw std::runtime_error("Data type not supported by YoloSegCpuPreProcessor");
         }
 
-        m_nBatchDims = config.ndimsInput;
+        const auto inputDims = config.ndimsOfInputs.find(std::string(YoloSegCpuPreProcessorSettings::ImageKey));
+        if (inputDims == config.ndimsOfInputs.end() || inputDims->second != 4) {
+            throw std::runtime_error("Incorrect input rank for YoloSegCpuPreProcessor");
+        }
+
+        m_nBatchDims = inputDims->second;
 }
 
-bool YoloSegCpuPreProcessor::process(
+void YoloSegCpuPreProcessor::process(
     const BatchFrameData& inputData,
-    TensorViewMap& outputMap,
-    const std::vector<std::string>& inputKeys
+    TensorViewMap& resultBufferViews
 ) {
 
-    if (inputKeys.size() != 1 || inputKeys[0] != "images" ) {
-        throw std::runtime_error("Invalid inputkeys parameter to YoloSegCpuPreProcessor");
-    }
-
     int batchSize = static_cast<int>(inputData.images.size());
-    int dims[] = {batchSize, NUM_IMG_CHANNELS, m_outImgH, m_outImgW};
+    auto imageTensor = resultBufferViews.at(
+        std::string(YoloSegCpuPreProcessorSettings::ImageKey)
+    );
 
-    cv::float16_t *batchData = outputMap["images"].ptr<cv::float16_t>();
-
-    if (!batchData) {
-        throw std::runtime_error("Uninitialized Memory for input to the model.");
+    if (imageTensor.device != DeviceType::CPU) {
+        throw std::runtime_error("Unsupported device for input preprocessing.");
     }
 
-    cv::Mat processedBatch(m_nBatchDims, dims, CV_16F, batchData);
+    cv::Mat processedBatch;
 
-    cv::dnn::blobFromImages(
-        inputData.images,
-        m_scale,
-        cv::Size(m_outImgW, m_outImgH),
-        cv::Scalar(m_mean),
-        m_isBGR,
-        false,
-        CV_32F
-    ).convertTo(processedBatch, CV_16F);
+    if (m_dtype == DataType::Float16) {
+        processedBatch = createBlob4D<cv::float16_t>(
+            inputData.images,
+            batchSize,
+            StaticSettings::NUM_IMG_CHANNELS,
+            m_outImgH,
+            m_outImgW,
+            m_mean,
+            m_scale,
+            m_isBGR,
+            imageTensor
+        );
 
-    return true;
+    } else {
+        processedBatch = createBlob4D<float>(
+            inputData.images,
+            batchSize,
+            StaticSettings::NUM_IMG_CHANNELS,
+            m_outImgH,
+            m_outImgW,
+            m_mean,
+            m_scale,
+            m_isBGR,
+            imageTensor
+        );
+
+    }
 }

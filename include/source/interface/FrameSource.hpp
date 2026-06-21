@@ -1,7 +1,7 @@
 #pragma once
 
 #include "source/utils/frame.hpp"
-#include "core/logger.hpp"
+#include "logging/BaseLogger.hpp"
 
 
 class FrameSource {
@@ -9,16 +9,18 @@ class FrameSource {
     public:
 
         virtual ~FrameSource() = default;
-        virtual bool read(Frame& frame, Logger& logger) = 0;
+        virtual bool read(Frame& frame, BaseLogger& logger) = 0;
         
-        bool readBatch(BatchFrameData& batch, Logger& logger) {
+        bool readBatch(BatchFrameData& batch, BaseLogger& logger) {
 
+            batch.images.clear();
+            batch.metas.clear();
             batch.images.reserve(m_batchSize);
             batch.metas.reserve(m_batchSize);
             
             Frame tmpFrame;
 
-            for (int i = 0; i < m_batchSize; i++) {
+            for (size_t i = 0; i < m_batchSize; i++) {
             
                 if (!read(tmpFrame, logger)) {
                     return false;
@@ -33,6 +35,11 @@ class FrameSource {
         }
 
     protected:
+        FrameSource(size_t imgHeight, size_t imgWidth, size_t batchSize):
+            m_imgHeight(imgHeight),
+            m_imgWidth(imgWidth),
+            m_batchSize(batchSize) {}
+
         cv::Mat zeros() {
             return cv::Mat::zeros(
                 static_cast<int>(m_imgHeight),

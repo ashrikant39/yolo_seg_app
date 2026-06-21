@@ -12,28 +12,28 @@
 class MemoryManager {
     public:
 
-        explicit MemoryManager(GroupLists groupLists);
+        explicit MemoryManager(TensorGroupConfig groupLists);
 
-        void allocateTensorGroup(const TensorInfoMap& tensorInfos, TensorGroupType group);
-        void allocateAllGroups(const TensorInfoMap& tensorInfos);
+        void allocateTensorsForGroup(const TensorSpecMap& tensorSpecs, TensorGroup group);
+        void allocateAllTensors(const TensorSpecMap& tensorSpecs);
 
         PipelineTensorContext createPipelineTensorContext();
 
         static void transferTensors(
             const std::vector<TensorTransfer>& transfers,
-            const std::vector<std::string>& tensorKeys,
+            const std::vector<std::string>& TensorKeys,
             cudaStream_t stream
         );
 
-        TensorViewMap& getTensorViewsFromGroup(TensorGroupType group);
-        const TensorViewMap& getTensorViewsFromGroup(TensorGroupType group) const;
+        TensorViewMap& getTensorViewsFromGroup(TensorGroup group);
+        const TensorViewMap& getTensorViewsFromGroup(TensorGroup group) const;
 
     private:
         template <typename TensorMapType>
-        void allocateTensors(TensorMapType& tensorMap, const TensorInfoMap& tensorInfos) {
+        void allocateBuffers(TensorMapType& tensorMap, const TensorSpecMap& tensorSpecs) {
             using TensorType = typename TensorMapType::mapped_type;
 
-            for (const auto& [name, info] : tensorInfos) {
+            for (const auto& [name, info] : tensorSpecs) {
                 auto [it, inserted] = tensorMap.emplace(
                     name,
                     TensorType(info.dtype, info.shape, info.mode)
@@ -47,34 +47,34 @@ class MemoryManager {
             }
         }
 
-        bool supportsGroup(TensorGroupType group) const;
-        bool hasAllocatedGroup(TensorGroupType group) const;
-        TensorGroupType selectFirstAllocatedGroup(const TensorGroupList& groups, const std::string& label) const;
-        TensorGroupType selectInferenceInputGroup() const;
-        TensorGroupType selectInferenceOutputGroup() const;
-        std::vector<TensorGroupType> allConfiguredGroups() const;
-        std::vector<TensorTransfer> makeTransfers(TensorGroupType sourceGroup, TensorGroupType targetGroup);
-        DeviceType getTensorMapDevice(const TensorViewMap& tensorMap) const;
+        bool supportsGroup(TensorGroup group) const;
+        bool hasAllocatedGroup(TensorGroup group) const;
+        TensorGroup selectFirstAllocatedGroup(const TensorGroupList& groups, const std::string& label) const;
+        TensorGroup selectInferenceInputGroup() const;
+        TensorGroup selectInferenceOutputGroup() const;
+        std::vector<TensorGroup> allConfiguredGroups() const;
+        std::vector<TensorTransfer> makeTransfers(TensorGroup sourceGroup, TensorGroup targetGroup);
+        DeviceType getTensorViewDevice(const TensorViewMap& tensorMap) const;
         void appendUnifiedReadiness(
             std::vector<TensorTransfer>& transfers,
-            TensorGroupType group,
-            TensorViewMap& tensors,
+            TensorGroup group,
+            TensorViewMap& bufferViews,
             DeviceType targetDevice
         );
 
         HostTensorMap m_hostInputs;
-        PinnedTensorMap m_pinnedInputs;
-        DeviceTensorMap m_deviceInputs;
-        UnifiedMemoryTensorMap m_unifiedInputs;
+        PinnedHostTensorMap m_pinnedInputs;
+        CudaTensorMap m_deviceInputs;
+        UnifiedTensorMap m_unifiedInputs;
 
         HostTensorMap m_hostOutputs;
-        PinnedTensorMap m_pinnedOutputs;
-        DeviceTensorMap m_deviceOutputs;
-        UnifiedMemoryTensorMap m_unifiedOutputs;
+        PinnedHostTensorMap m_pinnedOutputs;
+        CudaTensorMap m_deviceOutputs;
+        UnifiedTensorMap m_unifiedOutputs;
 
         HostTensorMap m_hostPostProcessOutputs;
-        DeviceTensorMap m_devicePostProcessOutputs;
+        CudaTensorMap m_devicePostProcessOutputs;
 
-        std::unordered_map<TensorGroupType, TensorViewMap> m_tensorViewMaps;
-        GroupLists m_groupLists;
+        std::unordered_map<TensorGroup, TensorViewMap> m_TensorViewsByGroup;
+        TensorGroupConfig m_groupLists;
 };

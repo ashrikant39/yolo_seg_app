@@ -4,8 +4,9 @@
 #include <opencv2/imgproc.hpp>
 #include <vector>
 
-#include "core/metadata.hpp"
+#include "source/utils/frame.hpp"
 
+namespace fs = std::filesystem;
 
 struct DetectionMetaData {
     fs::path imgPath;

@@ -1,7 +1,6 @@
 #include <numeric>
 
 #include "post_process/utils/PostProcessUtils.hpp"
-#include "post_process/utils/MatUtils.hpp"
 
 std::vector<cv::Point2d> normalizeContour(const std::vector<cv::Point2d>& contour, size_t imageW, size_t imageH) {
     std::vector<cv::Point2d> normalizedContour;

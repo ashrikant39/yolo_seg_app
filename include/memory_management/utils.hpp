@@ -7,7 +7,7 @@
 #include "enums.hpp"
 #include "core/cuda.hpp"
 
-struct GroupLists {
+struct TensorGroupConfig {
     TensorGroupList preProcessing;
     TensorGroupList inference;
     TensorGroupList postProcessing;
@@ -20,35 +20,35 @@ enum class TensorTransferKind {
 };
 
 struct TensorTransfer {
-    TensorGroupType sourceGroup;
-    TensorGroupType targetGroup;
-    std::reference_wrapper<TensorViewMap> sourceTensors;
-    std::reference_wrapper<TensorViewMap> targetTensors;
+    TensorGroup sourceGroup;
+    TensorGroup targetGroup;
+    std::reference_wrapper<TensorViewMap> sourceBufferViews;
+    std::reference_wrapper<TensorViewMap> targetBufferViews;
     TensorTransferKind kind = TensorTransferKind::Copy;
 };
 
-struct PreProcessingContext {
-    std::reference_wrapper<TensorViewMap> tensors;
-    TensorGroupType group;
+struct PreProcessingTensorContext {
+    std::reference_wrapper<TensorViewMap> bufferViews;
+    TensorGroup group;
 };
 
-struct InferenceContext {
-    std::reference_wrapper<TensorViewMap> inputTensors;
-    TensorGroupType inputGroup;
-    std::reference_wrapper<TensorViewMap> outputTensors;
-    TensorGroupType outputGroup;
-    std::vector<std::reference_wrapper<TensorViewMap>> bindableTensorMaps;
+struct InferenceTensorContext {
+    std::reference_wrapper<TensorViewMap> inputBufferViews;
+    TensorGroup inputGroup;
+    std::reference_wrapper<TensorViewMap> outputBufferViews;
+    TensorGroup outputGroup;
+    std::vector<std::reference_wrapper<TensorViewMap>> bindableTensorViews;
 };
 
-struct PostProcessingContext {
-    std::reference_wrapper<TensorViewMap> tensors;
-    TensorGroupType group;
+struct PostProcessingTensorContext {
+    std::reference_wrapper<TensorViewMap> bufferViews;
+    TensorGroup group;
 };
 
 struct PipelineTensorContext {
-    PreProcessingContext preProcessing;
-    InferenceContext inference;
-    PostProcessingContext postProcessing;
+    PreProcessingTensorContext preProcessing;
+    InferenceTensorContext inference;
+    PostProcessingTensorContext postProcessing;
     std::vector<TensorTransfer> preProcessingToInference;
     std::vector<TensorTransfer> inferenceToPostProcessing;
 };

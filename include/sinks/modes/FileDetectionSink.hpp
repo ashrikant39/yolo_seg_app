@@ -9,7 +9,7 @@ class FileDetectionSink : public ResultSink {
     public:
         FileDetectionSink(bool saveNormalized);
         
-        void consumeSingle(PostProcessOutput& output, Logger& logger) override;
+        void consumeSingle(PostProcessOutput& output, BaseLogger& logger) override;
 
     private:
         bool m_saveNormalized;

@@ -2,7 +2,7 @@
 
 #include <vector>
 
-enum class TensorGroupType {
+enum class TensorGroup {
     HostInput,
     PinnedInput,
     DeviceInput,
@@ -16,4 +16,4 @@ enum class TensorGroupType {
     HostPostProcessOutput,
     DevicePostProcessOutput
 };
-using TensorGroupList = std::vector<TensorGroupType>;
+using TensorGroupList = std::vector<TensorGroup>;

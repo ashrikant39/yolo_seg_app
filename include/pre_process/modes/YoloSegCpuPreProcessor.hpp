@@ -1,18 +1,26 @@
 #pragma once
 
+#include <array>
+
 #include "pre_process/interface/PreProcessor.hpp"
 #include "pre_process/config/PreProcessorConfig.hpp"
+#include "memory_management/enums.hpp"
 
-constexpr int NUM_IMG_CHANNELS = 3;
+
+struct YoloSegCpuPreProcessorSettings {
+    static constexpr std::string_view ImageKey = "images";
+    static constexpr TensorGroup inputTensorGroup = TensorGroup::HostInput;
+    static constexpr std::array<DataType, 2> supportedTypes = {DataType::Float16, DataType::Float32};
+};
+
 
 class YoloSegCpuPreProcessor : public PreProcessor {
 
     public:
         YoloSegCpuPreProcessor(const PreProcessorConfig& config);
-        bool process(
+        void process(
             const BatchFrameData& inputData,
-            TensorViewMap& outputMap,
-            const std::vector<std::string>& inputKeys
+            TensorViewMap& resultBufferViews
         ) override;
 
     private:
@@ -20,4 +28,5 @@ class YoloSegCpuPreProcessor : public PreProcessor {
         bool m_isBGR;
         int m_nBatchDims;
         size_t m_outImgH, m_outImgW;
-};  
+        DataType m_dtype;
+};

@@ -2,12 +2,13 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <mutex>
 
-#include "core/utils.hpp"
+#include "logging/enums.hpp"
 
 namespace fs = std::filesystem;
 
@@ -16,23 +17,23 @@ class BaseLogger {
     public:
         explicit BaseLogger();
         explicit BaseLogger(const fs::path& fileName);
-        explicit BaseLogger(const fs::path& fileName, LoggingSeverity severity);
-        void log(LoggingSeverity severity, const char* msg) noexcept ;
+        explicit BaseLogger(const fs::path& fileName, LoggingSeverityType severity);
+        void log(LoggingSeverityType severity, const char* msg) noexcept ;
         
         template <class ...Ts>
-        void logConcatMessage(LoggingSeverity severity, Ts&&... xs){
+        void logConcatMessage(LoggingSeverityType severity, Ts&&... xs) {
             
             try {
                 std::lock_guard<std::mutex> lock(m_loggerMutex);
-                if(severity <= m_severity){
+                if(severity >= m_severity){
 
-                    if(severity == LoggingSeverity::INTERNAL_ERROR)
+                    if(severity == LoggingSeverityType::INTERNAL_ERROR)
                         m_logStream << "[INTERNAL ERROR] ";
 
-                    else if(severity == LoggingSeverity::ERROR)
+                    else if(severity == LoggingSeverityType::ERROR)
                         m_logStream << "[ERROR] ";
 
-                    else if(severity == LoggingSeverity::WARNING)
+                    else if(severity == LoggingSeverityType::WARNING)
                         m_logStream << "[WARNING] ";
                     
                     else
@@ -50,7 +51,7 @@ class BaseLogger {
         bool assignStream();
 
     private:
-        LoggingSeverity m_severity;
+        LoggingSeverityType m_severity;
         std::filesystem::path m_logFilePath;
         std::ofstream m_logStream;
         std::mutex m_loggerMutex;

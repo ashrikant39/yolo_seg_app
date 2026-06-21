@@ -9,21 +9,19 @@ cv::Mat computeInstanceMask(
     const float *maskCoeffs
 ) {
     
-    NVTX_RANGE("INSTANCE_MASK_COMPUTE");
+    
     const int hw = maskH * maskW;
     cv::Mat coeff(1, nMaskCoeffs, CV_32F, const_cast<float*>(maskCoeffs));
     cv::Mat protoFlat(nMaskCoeffs, hw, CV_32F, const_cast<float*>(protoBatch));
     cv::Mat logits;
-    NVTX_RANGE("CV_GEMM");
+    
     cv::gemm(coeff, protoFlat, 1.0, cv::Mat(), 0.0, logits);  // 1 x (H*W)
-    NVTX_POP();
     cv::Mat mask(maskH, maskW, CV_32F);
     float* dst = mask.ptr<float>();
     const float* src = logits.ptr<float>();
     for (size_t i = 0; i < hw; ++i) {
         dst[i] = sigmoid(src[i]);
     }
-    NVTX_POP();
     return mask;
 }
 
@@ -41,7 +39,7 @@ cv::Mat computeAllInstanceMasks(
     size_t nCoeffs
 ) { 
 
-    NVTX_RANGE("computeAllInstanceMasks");
+    
     size_t totalMasks = nmsIndices.size();
     cv::Mat coeffMat(totalMasks, nMaskCoeffs, CV_32F);
     size_t hw = maskH * maskW;
@@ -74,7 +72,6 @@ cv::Mat computeAllInstanceMasks(
         maskPtr[i] = sigmoid(maskPtr[i]);
     }
 
-    NVTX_POP();
     return maskLogits;
 }
 
@@ -87,7 +84,6 @@ cv::Mat getRoIMaskFromRaw(
     float maskThresh
 ) {
 
-    NVTX_RANGE("ROI_MASK_COMPUTE");
     cv::Mat maskUp;
     cv::resize(lowResRawMask, maskUp, cv::Size(maskW, maskH), 0, 0, cv::INTER_LINEAR);
     cv::Mat binaryMask;
@@ -96,40 +92,34 @@ cv::Mat getRoIMaskFromRaw(
     binaryMask(boundingBox).copyTo(roiBinaryMask(boundingBox));
     cv::Mat mask8;
     roiBinaryMask.convertTo(mask8, CV_8U, 255.0);
-    NVTX_POP();
     return mask8;
 
 }
 
 
 
-bool getDetections(
+void getDetections(
     const cv::Mat& mask,
     const cv::Rect2d& boundingBox,
     size_t classLabel,
     double objectness,
     Detection& retDetection
 ) {
-    NVTX_RANGE("GET_DETECTIONS");
+    
     size_t imgH = mask.rows;
     size_t imgW = mask.cols;
+
+    retDetection.classLabel = classLabel;
+    retDetection.objectness = objectness;
+    retDetection.isNormalized = true;
     
     CV_Assert(mask.type() == CV_8UC1);
     std::vector<std::vector<cv::Point>> contours;
     
+    retDetection.boundingBox = normalizeBox(boundingBox, imgW, imgH);
     cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-    if (contours.empty()) {
-        NVTX_POP();
-        return false;
+    if (!contours.empty()) {
+        retDetection.objectContour = normalizeContour(contours[0], imgW, imgH);
     }
-    cv::Rect2d normedBox = normalizeBox(boundingBox, imgW, imgH);
-    std::vector<cv::Point2d> normedContour = normalizeContour(contours[0], imgW, imgH);
-
-    retDetection.classLabel = classLabel;
-    retDetection.objectness = objectness;
-    retDetection.boundingBox = normedBox;
-    retDetection.objectContour = normedContour;
-    NVTX_POP();
-    return true;
 }

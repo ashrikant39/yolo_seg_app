@@ -1,12 +1,18 @@
 #pragma once
 
+enum class DeviceType {
+    UNSET,
+    CPU,
+    CUDA
+};
 
-enum class LoggingSeverity {
-    INFO,
-    WARNING,
-    ERROR,
-    VERBOSE,
-    INTERNAL_ERROR,
+
+enum class MemoryType {
+    UNSET,
+    PageableHost,
+    PinnedHost,
+    CudaMem,
+    Unified
 };
 
 enum class ModelType {
@@ -23,7 +29,25 @@ enum class OutputType {
 };
 
 
-enum class ProcessDevice {
+enum class PreferredProcessingDevice {
     PREFER_CPU,
     PREFER_GPU
+};
+
+enum class DataType {
+    Float32,
+    Float16,
+    Int8,
+    Int32,
+    Bool,
+    UInt8,
+    BFloat16,
+    Int64
+};
+
+
+enum class IOMode {
+    Input,
+    Output,
+    None
 };

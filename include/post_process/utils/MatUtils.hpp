@@ -36,7 +36,7 @@ cv::Mat getRoIMaskFromRaw(
 );
 
 
-bool getDetections(
+void getDetections(
     const cv::Mat& mask,
     const cv::Rect2d& boundingBox,
     size_t classLabel,

@@ -8,4 +8,6 @@ std::unique_ptr<InferenceBackend> createInferenceBackend(InferenceBackendConfig 
     if (config.inferBackend == BackendType::YoloSegTRT) {
         return std::make_unique<YoloSegTRTBackend>(config, baseLogger);
     }
+
+    return nullptr;
 }

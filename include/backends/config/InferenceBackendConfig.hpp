@@ -1,18 +1,15 @@
 #pragma once
 
 #include <filesystem>
-#include "core/utils.hpp"
+
+#include "core/enums.hpp"
+#include "backends/utils/enums.hpp"
 
 namespace fs = std::filesystem;
-
-enum class BackendType {
-    UNSET,
-    YoloSegTRT
-};
 
 struct InferenceBackendConfig {
     BackendType inferBackend;
     ModelType modelType;
-    ProcessDevice processDevice;
+    PreferredProcessingDevice processDevice;
     fs::path modelFilePath;
 };

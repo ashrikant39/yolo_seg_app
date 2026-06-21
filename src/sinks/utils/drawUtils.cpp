@@ -26,7 +26,7 @@ cv::Mat drawRawMasksOnImage(
     const Detection& detection,
     float maskThresh
 ) {
-    NVTX_RANGE("DRAW_MASK_ON_IMAGE");
+
     CV_Assert(rawInstanceMask.type() == CV_32F);
 
     if (detection.isNormalized) {
@@ -39,7 +39,6 @@ cv::Mat drawRawMasksOnImage(
     colorMask.setTo(color, mask8);
     cv::addWeighted(image, 0.7, colorMask, 0.3, 0.0, blendedImage);
     image.copyTo(blendedImage, ~mask8);
-    NVTX_POP();
 
     return blendedImage;
 }
@@ -49,7 +48,7 @@ cv::Mat drawDetectedMasksOnImage(
     const cv::Mat& image,
     const Detection& detection
 ) {
-    NVTX_RANGE("DRAW_MASK_ON_IMAGE");
+
     
     if (detection.isNormalized) {
         throw std::runtime_error("Cannot use normalized boxes for drawing results");
@@ -62,7 +61,6 @@ cv::Mat drawDetectedMasksOnImage(
     colorMask.setTo(color, instanceMask);
     cv::addWeighted(image, 0.7, colorMask, 0.3, 0.0, blendedImage);
     image.copyTo(blendedImage, ~instanceMask);
-    NVTX_POP();
 
     return blendedImage;
 }
@@ -75,7 +73,7 @@ cv::Mat drawContoursOnImage(
     int lineThickness
 ) {
     
-    NVTX_RANGE("DRAW_CONTOURS_ON_IMAGE");
+
 
     if (detection.isNormalized) {
         throw std::runtime_error("Cannot use normalized boxes for drawing results");
@@ -87,7 +85,6 @@ cv::Mat drawContoursOnImage(
     cv::Scalar color = COLORS.count(detection.classLabel) ? COLORS[detection.classLabel] : cv::Scalar(0, 0, 0);
     cv::drawContours(output, intContour, -1, color, lineThickness);
 
-    NVTX_POP();
 
     return output;
 }
@@ -98,7 +95,7 @@ cv::Mat drawBoundingBoxOnImage(
     const Detection& detection,
     int lineThickness
 ) {
-    NVTX_RANGE("DRAW_BOXES_ON_IMAGE");
+
 
     if (detection.isNormalized) {
         throw std::runtime_error("Cannot use normalized boxes for drawing results");
@@ -109,7 +106,6 @@ cv::Mat drawBoundingBoxOnImage(
     
     cv::Scalar color = COLORS.count(detection.classLabel) ? COLORS[detection.classLabel] : cv::Scalar(0, 0, 0);
     cv::rectangle(output, boundingBox, color, lineThickness);
-    NVTX_POP();
     
     return output;
 }

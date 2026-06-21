@@ -1,260 +1,207 @@
 #pragma once
 
-#include <unordered_map>
-#include <NvInfer.h>
-#include <string>
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <numeric>
+#include <stdexcept>
+#include <string>
 #include <type_traits>
-#include <opencv2/core.hpp>
-#include <type_traits>
-#include <cuda_fp16.h>
-#include <cuda_bf16.h>
+#include <unordered_map>
+#include <variant>
+#include <vector>
 
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
+#include <opencv2/core.hpp>
+
+#include "core/enums.hpp"
 #include "core/memory.hpp"
 
-
-enum class DType {
-    Float32,
-    Float16,
-    Int8,
-    Int32,
-    Bool,
-    UInt8,
-    BFloat16,
-    Int64
-};
-
-
-inline size_t getSize(DType dtype){
-
-    switch (dtype) {
-        case DType::Float32: 
-            return sizeof(float);
-
-        case DType::Float16: 
-            return sizeof(__half);
-
-        case DType::Int8: 
-            return sizeof(int8_t);
-
-        case DType::Int32: 
-            return sizeof(int32_t);
-
-        case DType::Bool:
-            return sizeof(bool);
-
-        case DType::UInt8:
-            return sizeof(uint8_t);
-
-        case DType::BFloat16: 
-            return sizeof(__nv_bfloat16);
-
-        case DType::Int64: 
-            return sizeof(int64_t);
-            
-        default: 
-            throw std::runtime_error("Unknown data type");
-    }
-}
-
-
-inline size_t getNumElements(const Shape& shape) {
-
-    return std::accumulate(
-        shape.dims.begin(), 
-        shape.dims.end(), 
-        static_cast<size_t>(1),
-        std::multiplies<std::size_t>()
-    )
-}
-
-enum class IOMode {
-    Input,
-    Output,
-    None
-};
-
-
 struct Shape {
-
     std::vector<size_t> dims;
 
     size_t rank() const {
         return dims.size();
     }
 
-    size_t operator[](size_t i) const {
-        return dims[i];
+    size_t operator[](size_t index) const {
+        return dims.at(index);
     }
 };
 
-
-template <typename T>
-struct TensorDtype;
-
-template <>
-struct TensorDtype<float> {
-    static constexpr auto value = DType::Float32;
-};
-
-template <>
-struct TensorDtype<__half> {
-    static constexpr auto value = DType::Float16;
-};
-
-template <>
-struct TensorDtype<cv::float16_t> {
-    static constexpr auto value = DType::Float16;
-};
-
-
-template <>
-struct TensorDtype<int8_t> {
-    static constexpr auto value = DType::Int8;
-};
-
-template <>
-struct TensorDtype<int32_t> {
-    static constexpr auto value = DType::Int32;
-};
-
-template <>
-struct TensorDtype<uint8_t> {
-    static constexpr auto value = DType::UInt8;
-};
-
-template <>
-struct TensorDtype<bool> {
-    static constexpr auto value = DType::Bool;
-};
-
-template <typename, typename = void>
-struct HasTensorDtype : std::false_type {};
-
-template <typename T>
-struct HasTensorDtype<T, std::void_t<decltype(TensorDtype<T>::value)>>
-    : std::true_type {};
-
-
-template <typename T>
-inline void validateTensorDtype(DType actual) {
-
-    static_assert(
-        HasTensorDtype<T>::value,
-        "Unsupported Tensor element type"
-    );
-
-    if (actual != TensorDtype<T>::value) {
-        throw std::runtime_error("Requested pointer type does not match the tensor dtype");
+inline size_t getSize(DataType dtype) {
+    switch (dtype) {
+        case DataType::Float32:
+            return sizeof(float);
+        case DataType::Float16:
+            return sizeof(__half);
+        case DataType::Int8:
+            return sizeof(int8_t);
+        case DataType::Int32:
+            return sizeof(int32_t);
+        case DataType::Bool:
+            return sizeof(bool);
+        case DataType::UInt8:
+            return sizeof(uint8_t);
+        case DataType::BFloat16:
+            return sizeof(__nv_bfloat16);
+        case DataType::Int64:
+            return sizeof(int64_t);
+        default:
+            throw std::runtime_error("Unknown data type");
     }
 }
 
+inline size_t getTotalNumElements(const Shape& shape) {
+    return std::accumulate(
+        shape.dims.begin(),
+        shape.dims.end(),
+        static_cast<size_t>(1),
+        std::multiplies<size_t>()
+    );
+}
 
+template <typename T>
+struct TensorDataType;
+
+template <>
+struct TensorDataType<float> {
+    static constexpr auto value = DataType::Float32;
+};
+
+template <>
+struct TensorDataType<__half> {
+    static constexpr auto value = DataType::Float16;
+};
+
+template <>
+struct TensorDataType<cv::float16_t> {
+    static constexpr auto value = DataType::Float16;
+};
+
+template <>
+struct TensorDataType<int8_t> {
+    static constexpr auto value = DataType::Int8;
+};
+
+template <>
+struct TensorDataType<int32_t> {
+    static constexpr auto value = DataType::Int32;
+};
+
+template <>
+struct TensorDataType<uint8_t> {
+    static constexpr auto value = DataType::UInt8;
+};
+
+template <>
+struct TensorDataType<bool> {
+    static constexpr auto value = DataType::Bool;
+};
+
+template <typename, typename = void>
+struct HasTensorDataType : std::false_type {};
+
+template <typename T>
+struct HasTensorDataType<T, std::void_t<decltype(TensorDataType<T>::value)>>
+    : std::true_type {};
+
+template <typename T>
+inline void validateTensorDataType(DataType actual) {
+    static_assert(
+        HasTensorDataType<T>::value,
+        "Unsupported tensor element type"
+    );
+
+    if (actual != TensorDataType<T>::value) {
+        throw std::runtime_error("Requested pointer type does not match tensor dtype");
+    }
+}
+
+struct TensorView {
+    void* data = nullptr;
+    DataType type = DataType::Float32;
+    size_t numElements = 0;
+    size_t totalBytes = 0;
+    Shape shape;
+    IOMode mode = IOMode::None;
+    DeviceType device = DeviceType::UNSET;
+    MemoryType memoryType = MemoryType::UNSET;
+
+    template <typename T>
+    T* ptr() {
+        validateTensorDataType<T>(type);
+        return reinterpret_cast<T*>(data);
+    }
+
+    template <typename T>
+    const T* ptr() const {
+        validateTensorDataType<T>(type);
+        return reinterpret_cast<const T*>(data);
+    }
+};
 
 template <typename AllocPolicy>
-class Tensor{
-
+class Tensor {
     public:
+        using Storage = typename AllocPolicy::BytePointer;
 
-        using Storage = typename AllocPolicy::template Pointer<std::byte>;
+        Tensor() = default;
 
-        // Default constructor
-        Tensor(): 
-            m_dtype(DType::Float32),
-            m_numElements(0),
-            m_numBytes(0),
-            m_shape{},
-            m_mode(IOMode::None),
-            m_ptr(nullptr) {}
-
-        /**
-         * @brief Construct a tensor wrapper around contiguous storage.
-         * @param dtype Dtype metadata.
-         * @param dims dimensions.
-         * @param mode IO mode (input/output).
-         */
-
-        Tensor(DType dtype, const Shape& shape, IOMode mode):
+        Tensor(DataType dtype, const Shape& shape, IOMode mode):
             m_dtype(dtype),
+            m_numElements(getTotalNumElements(shape)),
+            m_numBytes(getSize(dtype) * m_numElements),
             m_shape(shape),
             m_mode(mode),
-            m_numElements(getNumElements(shape)),
-            m_numBytes(getSize(m_dtype) * m_numElements),
-            m_ptr(AllocPolicy::allocateBytes(m_numBytes)) 
+            m_ptr(AllocPolicy::allocateBytes(m_numBytes)),
             m_device(AllocPolicy::deviceType),
-            m_memoryKind(AllocPolicy::memoryKind) {}
+            m_memoryType(AllocPolicy::memoryType) {}
 
-        /**
-         * @brief Total number of elements count derived from shape.
-         */
-        size_t getNumElements() const {
+        size_t numel() const {
             return m_numElements;
         }
-        
-        /**
-         * @brief Total number of bytes occupied by the tensor.
-         */
+
         size_t getTotalBytes() const {
             return m_numBytes;
         }
-        
-        /**
-         * @brief Data type of the tensor.
-         */
-        DType getDtype() const {
+
+        DataType getDataType() const {
             return m_dtype;
         }
-        
-        /**
-         * @brief Shape type of the tensor.
-         */
+
         Shape shape() const {
             return m_shape;
         }
-        
-        /**
-         * @brief IOMode of the tensor.
-         */
+
         IOMode getIOMode() const {
             return m_mode;
         }
 
-
-        /**
-         * @brief Mutable raw pointer to underlying contiguous storage.
-         */
-        void* rawPtr(){
+        void* rawPtr() {
             return m_ptr.get();
         }
 
-        /**
-         * @brief Const raw pointer to underlying contiguous storage.
-         */
         const void* rawPtr() const {
             return m_ptr.get();
         }
 
-        /**
-         * @brief Cast the pointer to underlying contiguous storage to the original type.
-         */
-        template <typename T>
-        T* ptr() {
-            validateTensorDtype<T>(m_dtype);
-            return reinterpret_cast<T*>(rawPtr());
-        }
+        // template <typename T>
+        // T* ptr() {
+        //     validateTensorDataType<T>(m_dtype);
+        //     return reinterpret_cast<T*>(rawPtr());
+        // }
 
-        /**
-         * @brief Cast a const pointer to underlying contiguous storage to the original type.
-         */
-        template <typename T>
-        const T* ptr() const {
-            validateTensorDtype<T>(m_dtype);
-            return reinterpret_cast<const T*>(rawPtr());
-        }
-        
+        // template <typename T>
+        // const T* ptr() const {
+        //     validateTensorDataType<T>(m_dtype);
+        //     return reinterpret_cast<const T*>(rawPtr());
+        // }
+
         TensorView view() const {
-
-            return TensorView {
+            return TensorView{
                 .data = m_ptr.get(),
                 .type = m_dtype,
                 .numElements = m_numElements,
@@ -262,75 +209,43 @@ class Tensor{
                 .shape = m_shape,
                 .mode = m_mode,
                 .device = m_device,
-                .memoryKind = m_memoryKind
+                .memoryType = m_memoryType
             };
-
         }
-        
+
     private:
-        DType m_dtype;
-        size_t m_numElements, m_numBytes;
+        DataType m_dtype = DataType::Float32;
+        size_t m_numElements = 0;
+        size_t m_numBytes = 0;
         Shape m_shape;
-        IOMode m_mode;
+        IOMode m_mode = IOMode::None;
         Storage m_ptr;
-        
-        // allocation parameters
         DeviceType m_device = DeviceType::UNSET;
-        MemoryKind m_memoryKind = MemoryKind::UNSET;
+        MemoryType m_memoryType = MemoryType::UNSET;
 };
 
-
-
-struct TensorView {
-
-    void *data = nullptr;
-    DType type;
-    size_t numElements = 0;
-    size_t totalBytes = 0;
+struct TensorSpec {
     Shape shape;
-    IOMode mode;
-    DeviceType device;
-    MemoryKind memoryKind;
-
-    /**
-     * @brief Cast the pointer to underlying contiguous storage to the original type.
-     */
-    template <typename T>
-    T* ptr() {
-        validateTensorDtype<T>(type);
-        return reinterpret_cast<T*>(data);
-    }
-
-    /**
-     * @brief Cast a const pointer to underlying contiguous storage to the original type.
-     */
-    template <typename T>
-    const T* ptr() const {
-        validateTensorDtype<T>(type);
-        return reinterpret_cast<const T*>(data);
-    }
+    DataType dtype = DataType::Float32;
+    IOMode mode = IOMode::None;
 };
 
-
-struct TensorInfo {
-    Shape shape;
-    DType dtype;
-    IOMode mode;
-};
-
-
-
-using TensorMap = std::unordered_map<std::string, Tensor<MallocHostPolicy>>;
+using HostTensorMap = std::unordered_map<std::string, Tensor<MallocHostPolicy>>;
 using CudaTensorMap = std::unordered_map<std::string, Tensor<CudaDevicePolicy>>;
-using PinnedTensorMap = std::unordered_map<std::string, Tensor<PinnedHostPolicy>>;
-using UnifiedMemoryTensorMap = std::unordered_map<std::string, Tensor<UnifiedMemoryPolicy>>;
+using PinnedHostTensorMap = std::unordered_map<std::string, Tensor<PinnedHostPolicy>>;
+using UnifiedTensorMap = std::unordered_map<std::string, Tensor<UnifiedMemoryPolicy>>;
 
+using TensorStorageMap = std::variant<
+    HostTensorMap,
+    CudaTensorMap,
+    PinnedHostTensorMap,
+    UnifiedTensorMap
+>;
 using TensorViewMap = std::unordered_map<std::string, TensorView>;
-using TensorInfoMap = std::unordered_map<std::string, TensorInfo>;
+using TensorSpecMap = std::unordered_map<std::string, TensorSpec>;
 
 template <typename TensorMapType>
-TensorViewMap getTensorViewMap(const TensorMapType& tensorMap) {
-
+TensorViewMap getTensorViews(const TensorMapType& tensorMap) {
     TensorViewMap views;
     views.reserve(tensorMap.size());
 
@@ -340,42 +255,43 @@ TensorViewMap getTensorViewMap(const TensorMapType& tensorMap) {
     return views;
 }
 
-inline bool tensorMapInDevice(const TensorViewMap& tensorViewMap, DeviceType device) {
-
-    for (const auto& [name, tensorView] : tensorViewMap) {
-        if (tensorView.device != device) {
+inline bool TensorViewsOnDevice(const TensorViewMap& TensorViews, DeviceType device) {
+    for (const auto& [name, TensorView] : TensorViews) {
+        if (TensorView.device != device) {
             return false;
         }
     }
     return true;
 }
 
-
-inline float sigmoid(float x) {
-    return 1.f / (1.f + std::exp(-std::max(-50.f, std::min(50.f, x))));
+inline bool TensorViewsInMemory(const TensorViewMap& TensorViews, MemoryType memoryType) {
+    for (const auto& [name, TensorView] : TensorViews) {
+        if (TensorView.memoryType != memoryType) {
+            return false;
+        }
+    }
+    return true;
 }
 
-/** Linear index for [batch][i1][i2][i3] with dims [B, D1, D2, D3]. */
-inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3){
+inline float sigmoid(float x) {
+    return 1.f / (1.f + std::exp(-std::clamp(x, -50.f, 50.f)));
+}
+
+inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3) {
     return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2 * D3) +
            static_cast<size_t>(i1) * static_cast<size_t>(D2 * D3) +
            static_cast<size_t>(i2) * static_cast<size_t>(D3) +
            static_cast<size_t>(i3);
 }
 
-/** Linear index for [batch][i1][i2] with dims [B, D1, D2]. */
-inline size_t idx3(int b, int i1, int i2, int D1, int D2){
+inline size_t idx3(int b, int i1, int i2, int D1, int D2) {
     return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2) +
            static_cast<size_t>(i1) * static_cast<size_t>(D2) +
            static_cast<size_t>(i2);
 }
 
-
-/** Copy half-precision buffer to float32 (CPU-side buffers). */
 inline void castHalfToFloat(float* dst, const __half* src, size_t numElements) {
-    NVTX_RANGE("CASTING_DATA_TO_FLOAT");
     for (size_t i = 0; i < numElements; ++i) {
         dst[i] = __half2float(src[i]);
     }
-    NVTX_POP();
 }

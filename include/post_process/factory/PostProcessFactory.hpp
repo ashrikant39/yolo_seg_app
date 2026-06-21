@@ -4,6 +4,14 @@
 #include "post_process/config/PostProcessorConfig.hpp"
 #include "post_process/interface/PostProcessor.hpp"
 
+inline std::vector<std::string> getOutputTensorNames(const TensorSpecMap& outputSpecs) {
+    std::vector<std::string> names;
+    names.reserve(outputSpecs.size());
+    for (const auto& [name, info] : outputSpecs) {
+        names.push_back(name);
+    }
+    return names;
+}
 
 inline ModelType getModelTypeFromNames(const std::vector<std::string>& outputNames) {
 

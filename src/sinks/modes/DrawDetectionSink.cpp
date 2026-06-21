@@ -72,7 +72,10 @@ DrawDetectionSink::DrawDetectionSink(const ResultSinkConfig& config):
 
 }
 
-void DrawDetectionSink::consumeSingle(PostProcessOutput& output, Logger& logger) {
+void DrawDetectionSink::consumeSingle(PostProcessOutput& output, BaseLogger& logger) {
+    if (output.metadata.imagePath.empty() && output.detections.empty()) {
+        return;
+    }
 
 
     if ( output.metadata.imagePath.empty() || !std::filesystem::is_regular_file(output.metadata.imagePath) ) {
@@ -100,16 +103,29 @@ void DrawDetectionSink::consumeSingle(PostProcessOutput& output, Logger& logger)
     fs::create_directories(saveDir);
     size_t idx = 0;
 
-    for (const auto& detection : output.detections ) {
-        fs::path maskPath = saveDir / 
-                            detection.metadata.imgPath.stem() /
-                            "_drawn_detections_" / 
-                            std::to_string(detection.metadata.detectionId) /
-                            ".png";
+    logger.logConcatMessage(LoggingSeverityType::INFO, "Drawing Detections for frame: ", output.metadata.frameId, '\n');
+    logger.logConcatMessage(LoggingSeverityType::INFO, "Total Detections: ", output.detections.size(), '\n');
+
+    for (const auto& sourceDetection : output.detections ) {
+        Detection detection = sourceDetection;
         
-        // contour = denormalizeToIntContour()
-        // drawDetectedMasksOnImage()
+        denormalizeDetectionInPlace(detection, imageW, imageH);
+
+        if (m_drawBoxes) {
+            resizedImg = drawBoundingBoxOnImage(resizedImg, detection, m_lineThickness);
+        }
+
+        if (m_drawContours) {
+            resizedImg = drawContoursOnImage(resizedImg, detection, m_lineThickness);
+        }
+
+        if (m_drawMasks) {
+            resizedImg = drawDetectedMasksOnImage(resizedImg, detection);
+        }
         idx++;
     }
+
+    const fs::path savePath = saveDir / (output.metadata.imagePath.stem().string() + "_drawn_detections.png");
+    cv::imwrite(savePath.string(), resizedImg);
 
 }

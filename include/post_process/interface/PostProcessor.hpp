@@ -6,10 +6,8 @@
 
 
 #include "core/tensor.hpp"
-#include "core/logger.hpp"
-#include "core/options.hpp"
 #include "core/cuda.hpp"
-#include "core/metadata.hpp"
+#include "logging/BaseLogger.hpp"
 #include "post_process/utils/PostProcessUtils.hpp"
 
 
@@ -26,9 +24,9 @@ class PostProcessor {
         virtual ~PostProcessor() = default;
 
         virtual void process(
-            const TensorViewMap& engineOutputBatch,
+            const TensorViewMap& engineOutputViews,
             std::vector<PostProcessOutput>& processedBatch,
-            Logger& logger,
+            BaseLogger& logger,
             cudaStream_t stream
         ) = 0;
 };

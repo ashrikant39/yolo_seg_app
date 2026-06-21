@@ -4,7 +4,7 @@ std::unique_ptr<PreProcessor> createPreProcessor(PreProcessorConfig config) {
     
     if (
         config.modelType == ModelType::YOLO_SEGMENTATION &&
-        config.preferredDevice == ProcessDevice::PREFER_CPU
+        config.preferredDevice == PreferredProcessingDevice::PREFER_CPU
     ) {
         return std::make_unique<YoloSegCpuPreProcessor>(config);
     }

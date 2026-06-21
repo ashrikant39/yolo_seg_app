@@ -67,25 +67,25 @@ assets/
 The link to the downloadable package:
 
 ```text
-wget https://developer.download.nvidia.com/compute/tensorrt/10.16.1/local_installers/nv-tensorrt-local-repo-ubuntu2204-10.16.1-cuda-13.2_1.0-1_amd64.deb
+wget https://developer.download.nvidia.com/compute/tensorrt/10.16.1/local_installers/nv-tensorrt-local-repo-ubuntu2404-10.16.1-cuda-12.9_1.0-1_amd64.deb
 ```
 
 Then run:
 
 ```bash
-sudo dpkg -i assets/nv-tensorrt-local-repo-ubuntu2204-10.16.1-cuda-13.2_1.0-1_amd64.deb
+sudo dpkg -i assets/nv-tensorrt-local-repo-ubuntu2404-10.16.1-cuda-12.9_1.0-1_amd64.deb
 ```
 
 Copy the repository keyring. The exact key filename may differ, so inspect the directory first:
 
 ```bash
-ls /var/nv-tensorrt-local-repo-ubuntu2204-10.16.1-cuda-13.2/
+ls /var/nv-tensorrt-local-repo-ubuntu2404-10.16.1-cuda-12.9/
 ```
 
 Then copy the `.gpg` keyring file:
 
 ```bash
-sudo cp /var/nv-tensorrt-local-repo-ubuntu2204-10.16.1-cuda-13.2/*.gpg /usr/share/keyrings/
+sudo cp /var/nv-tensorrt-local-repo-ubuntu2404-10.16.1-cuda-12.9/*.gpg /usr/share/keyrings/
 ```
 
 Update apt:

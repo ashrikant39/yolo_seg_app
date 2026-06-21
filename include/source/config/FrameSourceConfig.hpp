@@ -2,16 +2,11 @@
 
 #include <filesystem>
 
+#include "source/utils/enums.hpp"
+
 namespace fs = std::filesystem;
-
-enum class Source {
-    UNSET,
-    FOLDER,
-    VIDEO,
-};
-
 struct FrameSourceConfig {
-    Source frameSourceType;
+    FrameSourceType frameSourceType;
     fs::path sourcePath;
     size_t imgHeight, imgWidth, batchSize;
 };

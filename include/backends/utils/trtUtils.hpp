@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <NvInfer.h>
 #include <array>
+#include <fstream>
 
 #include "core/tensor.hpp"
 #include "logging/BackendLoggers/TrtLoggerAdaptor.hpp"
@@ -12,94 +13,115 @@ namespace fs = std::filesystem;
 std::vector<char> readEngineFileToArray(const fs::path& fileName);
 
 std::vector<std::string> getTensorNames(
-    const std::unique_ptr<nvinfer1::ICudaEngine> engine,
+    const std::unique_ptr<nvinfer1::ICudaEngine>& engine,
     nvinfer1::TensorIOMode mode
 );
 
 
 void logFullModelInfo(
     TrtLoggerAdaptor& logger,
-    const std::unique_ptr<nvinfer1::ICudaEngine> engine
+    const std::unique_ptr<nvinfer1::ICudaEngine>& engine
 );
 
 
-inline IOMode fromTrtIOMode(nvinfer1::TensorIOMode trtmode) {
+inline IOMode TrtIOMode2IOMode(nvinfer1::TensorIOMode trtmode) {
 
     switch (trtmode) {
 
         case nvinfer1::TensorIOMode::kINPUT:
             return IOMode::Input;
-        
+
         case nvinfer1::TensorIOMode::kOUTPUT:
             return IOMode::Output;
-        
+
         case nvinfer1::TensorIOMode::kNONE:
             return IOMode::None;
+
+        default:
+            throw std::runtime_error("Unsupported type for nvinfer tensor io mode.");
+    }
+}
+
+
+inline nvinfer1::TensorIOMode IOMode2TrtIOMode(IOMode iomode) {
+
+    switch (iomode) {
+
+        case IOMode::Input:
+            return nvinfer1::TensorIOMode::kINPUT;
+
+        case IOMode::Output:
+            return nvinfer1::TensorIOMode::kOUTPUT;
+
+        case IOMode::None:
+            return nvinfer1::TensorIOMode::kNONE;
 
         default:
             throw std::runtime_error("Unsupported type for tensor io mode.");
     }
 }
 
-inline DType getTensorTypefromTrtDType(nvinfer1::DataType trtType) {
-    
+inline DataType TrtType2DataType(nvinfer1::DataType trtType) {
+
     switch (trtType) {
-        
+
         case nvinfer1::DataType::kFLOAT:
-            return DType::Float32;
+            return DataType::Float32;
 
         case nvinfer1::DataType::kHALF:
-            return DType::Float16;
+            return DataType::Float16;
 
         case nvinfer1::DataType::kBF16:
-            return DType::BFloat16;
+            return DataType::BFloat16;
 
         case nvinfer1::DataType::kINT8:
-            return DType::Int8;
+            return DataType::Int8;
 
         case nvinfer1::DataType::kINT32:
-            return DType::Int32;
+            return DataType::Int32;
 
         case nvinfer1::DataType::kUINT8:
-            return DType::UInt8;
+            return DataType::UInt8;
 
         case nvinfer1::DataType::kBOOL:
-            return DType::Bool;
-        
+            return DataType::Bool;
+
         case nvinfer1::DataType::kFP8:
         case nvinfer1::DataType::kFP4:
         case nvinfer1::DataType::kINT4:
             throw std::runtime_error("Unsupported type for tensor data type.");
     }
 
+    throw std::runtime_error("Unsupported type for tensor data type.");
+
 }
 
-inline nvinfer1::DataType getTrtDTypeFromTensorType(DType dtype) {
+inline nvinfer1::DataType DataType2TrtType(DataType dtype) {
 
     switch (dtype) {
 
-        case DType::Float32:
+        case DataType::Float32:
             return nvinfer1::DataType::kFLOAT;
-        
-        case DType::Float16:
+
+        case DataType::Float16:
             return nvinfer1::DataType::kHALF;
 
-        case DType::Int8:
+        case DataType::Int8:
             return nvinfer1::DataType::kINT8;
 
-        case DType::Int32:
+        case DataType::Int32:
             return nvinfer1::DataType::kINT32;
 
-        case DType::Bool:
+        case DataType::Bool:
             return nvinfer1::DataType::kBOOL;
 
-        case DType::UInt8:
+        case DataType::UInt8:
             return nvinfer1::DataType::kUINT8;
 
-        case DType::BFloat16:
+        case DataType::BFloat16:
             return nvinfer1::DataType::kBF16;
 
-        case DType::Int64:
+        case DataType::Int64:
             return nvinfer1::DataType::kINT64;
 
         default:
@@ -107,5 +129,5 @@ inline nvinfer1::DataType getTrtDTypeFromTensorType(DType dtype) {
     }
 }
 
-Shape fromTrtDims(const nvinfer1::Dims& dims);
-nvinfer1::Dims toTrtDims(const Shape& shape);
+Shape TrtDims2Shape(const nvinfer1::Dims& dims);
+nvinfer1::Dims ShapetoTrtDims(const Shape& shape);

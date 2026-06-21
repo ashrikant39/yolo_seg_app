@@ -1,26 +1,24 @@
 #include "sinks/modes/FileDetectionSink.hpp"
 
+#include <fstream>
+
 // CONSTRUCTOR
 FileDetectionSink::FileDetectionSink(bool saveNormalized) {
     m_saveNormalized = saveNormalized;
 }
 
-void FileDetectionSink::consumeSingle(PostProcessOutput& output, Logger& logger) {
+void FileDetectionSink::consumeSingle(PostProcessOutput& output, BaseLogger& logger) {
+    if (output.metadata.imagePath.empty() && output.detections.empty()) {
+        return;
+    }
   
-    NVTX_RANGE("WRITE_DET");
-    NVTX_RANGE("SERIALIZE_DETECTIONS");
 
     if (m_saveNormalized) {
 
         for ( auto& det : output.detections ) {
-            if (!normalizeDetectionInPlace(det, output.metadata.outputWidth, output.metadata.outputHeight)) {
-                logger.logConcatMessage(
-                    Severity::kWARNING,
-                    "Trying to normalize an already normalized detection, id= ",
-                    det.metadata.detectionId,
-                    " Image Path: ",
-                    det.metadata.imgPath
-                );
+
+            if ( !det.isNormalized ) {
+                normalizeDetectionInPlace(det, output.metadata.outputWidth, output.metadata.outputHeight);
             }
         }
     }

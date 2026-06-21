@@ -48,6 +48,11 @@ do {                                                                      \
     #define NVTX_POP()      do { } while(0)
 #endif
 
+inline int currentCudaDevice() {
+    int device = 0;
+    CUDA_THROW(cudaGetDevice(&device));
+    return device;
+}
 
 template <typename T>
 struct DevicePtrDeleter {
@@ -79,7 +84,19 @@ struct ManagedPtrDeleter {
 class CudaStream {
 
     public:
-        CudaStream() {
+        CudaStream() = default;
+
+        static CudaStream create() {
+            CudaStream stream;
+            stream.createStream();
+            return stream;
+        }
+
+        void createStream() {
+            if (m_stream) {
+                return;
+            }
+
             cudaError_t err = cudaStreamCreate(&m_stream);
             if (err != cudaSuccess) {
                 throw std::runtime_error(
@@ -116,18 +133,14 @@ class CudaStream {
             return m_stream;
         }
 
+        bool valid() const noexcept {
+            return m_stream != nullptr;
+        }
+
         operator cudaStream_t() const noexcept {
             return m_stream;
         }
 
     private:
         cudaStream_t m_stream{nullptr};
-};
-
-
-enum class DeviceType {
-    UNSET,
-    CPU,
-    CUDA,
-    Unified
 };

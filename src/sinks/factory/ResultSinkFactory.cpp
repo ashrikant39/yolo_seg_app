@@ -4,12 +4,12 @@
 
 std::unique_ptr<ResultSink> createResultSink(const ResultSinkConfig& config) {
 
-    switch (config.sinkMode) {
+    switch (config.sinkType) {
 
-        case ResultSinkMode::SAVE_DETECTIONS:
+        case ResultSinkType::SAVE_DETECTIONS:
             return std::make_unique<FileDetectionSink>(config.saveMode == SaveDetectionMode::NORMALIZED);
 
-        case ResultSinkMode::DRAW_DETCTIONS:
+        case ResultSinkType::DRAW_DETCTIONS:
             return std::make_unique<DrawDetectionSink>(config);
 
         default:

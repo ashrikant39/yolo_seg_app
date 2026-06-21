@@ -7,9 +7,8 @@ class PreProcessor {
 
     public:
         virtual ~PreProcessor() = default;
-        virtual bool process(
+        virtual void process(
             const BatchFrameData& inputData,
-            TensorViewMap& outputMap,
-            const std::vector<std::string>& inputKeys
+            TensorViewMap& resultBufferViews
         ) = 0;
 };

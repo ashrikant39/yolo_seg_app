@@ -9,7 +9,7 @@ class FolderFrameSource : public FrameSource {
     public:
         FolderFrameSource(const FrameSourceConfig& config);
 
-        bool read(Frame& frame, Logger& logger) override;
+        bool read(Frame& frame, BaseLogger& logger) override;
 
         void reset() {
             m_currId = FRAME_START;

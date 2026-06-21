@@ -1,25 +1,24 @@
 #pragma once
 
 #include <cstddef>
+#include <unordered_map>
+#include <string>
 
-#include "core/utils.hpp"
+#include "core/enums.hpp"
+#include "pre_process/utils/enums.hpp"
 
-enum class ChannelOrder {
-    RGB,
-    BGR,
-};
 
 struct PreProcessorConfig {
 
     ModelType modelType;
-    ProcessDevice preferredDevice;
-    ChannelOrder rgbOrdering;
-    size_t resizeHeight, resizeWidth, n_channels;
-    DType outputDtype;
+    PreferredProcessingDevice preferredDevice;
+    ChannelOrderType imgRgbOrdering;
+    size_t imgResizeHeight, imgResizeWidth, numImgChannels;
+    DataType outputDataType;
     
-    double scalingFactor = 1.0f;
-    double mean = 0.0f;
+    double imgScalingFactor = 1.0f;
+    double imgMean = 0.0f;
     
-    int ndimsInput = 4;
+    std::unordered_map<std::string, int> ndimsOfInputs;
 
 };

@@ -6,27 +6,27 @@
 
 using TrtSeverity = nvinfer1::ILogger::Severity;
 
-inline LoggingSeverity getBaseLoggerSeverity(TrtSeverity severity) noexcept {
+inline LoggingSeverityType getBaseLoggerSeverity(TrtSeverity severity) noexcept {
 
     switch (severity) {
 
         case TrtSeverity::kINFO:
-            return LoggingSeverity::INFO;
+            return LoggingSeverityType::INFO;
         
         case TrtSeverity::kERROR:
-            return LoggingSeverity::ERROR;
+            return LoggingSeverityType::ERROR;
         
         case TrtSeverity::kINTERNAL_ERROR:
-            return LoggingSeverity::INTERNAL_ERROR;
+            return LoggingSeverityType::INTERNAL_ERROR;
         
         case TrtSeverity::kWARNING:
-            return LoggingSeverity::WARNING;
+            return LoggingSeverityType::WARNING;
         
         case TrtSeverity::kVERBOSE:
-            return LoggingSeverity::VERBOSE;
+            return LoggingSeverityType::VERBOSE;
         
         default:
-            return LoggingSeverity::INTERNAL_ERROR;
+            return LoggingSeverityType::INTERNAL_ERROR;
     }
 }
 
@@ -72,7 +72,7 @@ class TrtLoggerAdaptor : public nvinfer1::ILogger {
                     ss << ']';
                 }
             }
-            m_baseLogger.log(severity, ss.str().c_str());
+            m_baseLogger.log(getBaseLoggerSeverity(severity), ss.str().c_str());
             
         }
 

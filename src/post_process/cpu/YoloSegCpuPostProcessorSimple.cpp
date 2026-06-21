@@ -11,7 +11,6 @@
 
 #include "post_process/cpu/YoloSegCpuPostProcessorSimple.hpp"
 #include "post_process/utils/MatUtils.hpp"
-#include "AppSettings.hpp"
 #include "core/tensor.hpp"
 
 
@@ -24,43 +23,51 @@ YoloSegCpuPostProcessorSimple::YoloSegCpuPostProcessorSimple(const PostProcessor
 }
 
 void YoloSegCpuPostProcessorSimple::process(
-    const TensorViewMap& engineOutputBatch,
+    const TensorViewMap& engineOutputViews,
     std::vector<PostProcessOutput>& processedBatch,
-    Logger& logger,
+    BaseLogger& logger,
     cudaStream_t stream
 ){
 
-    const std::string boxKey = SimplifiedYoloSettings::BOX_KEY;
-    const std::string maskKey = SimplifiedYoloSettings::MASK_KEY;
-    const std::string labelKey = SimplifiedYoloSettings::CLASS_LABEL;
-    const std::string scoreKey = SimplifiedYoloSettings::OBJECTNESS;
+    const std::string boxKey(YoloSegCpuPostProcessorSimpleSettings::BoxKey);
+    const std::string maskKey(YoloSegCpuPostProcessorSimpleSettings::MaskKey);
+    const std::string labelKey(YoloSegCpuPostProcessorSimpleSettings::LabelKey);
+    const std::string scoreKey(YoloSegCpuPostProcessorSimpleSettings::ScoreKey);
 
     if (
-        !engineOutputBatch.count(boxKey)     ||
-        !engineOutputBatch.count(maskKey)    ||
-        !engineOutputBatch.count(labelKey)   ||
-        !engineOutputBatch.count(scoreKey)
+        !engineOutputViews.count(boxKey)     ||
+        !engineOutputViews.count(maskKey)    ||
+        !engineOutputViews.count(labelKey)   ||
+        !engineOutputViews.count(scoreKey)
     ) {
         logger.logConcatMessage(
             Severity::kERROR,
-            "Missing output tensors");
+            "Missing output buffer views",
+            '\n'
+        );
         return;
     }
 
-    const nvinfer1::Dims boxDims = engineOutputBatch.at(boxKey).dims; // .at()[B, NObjects, 4]
-    const nvinfer1::Dims maskDims = engineOutputBatch.at(maskKey).dims; // [B, NObjects, H, W]
+    const Shape& boxDims = engineOutputViews.at(boxKey).shape;   // [B, NObjects, 4]
+    const Shape& maskDims = engineOutputViews.at(maskKey).shape; // [B, NObjects, H, W]
 
-    const size_t batchSize = static_cast<size_t>(boxDims.d[0]);
-    const size_t nBoxes = static_cast<size_t>(boxDims.d[1]);
-    const size_t nCoeffs = static_cast<size_t>(boxDims.d[2]);
+    if (boxDims.rank() != 3 || maskDims.rank() != 4) {
+        throw std::runtime_error("Unexpected modified YOLO segmentation output rank");
+    }
 
-    const size_t maskH = static_cast<size_t>(maskDims.d[2]);
-    const size_t maskW = static_cast<size_t>(maskDims.d[3]);
+    const size_t batchSize = boxDims[0];
+    const size_t nBoxes = boxDims[1];
+    const size_t maskH = maskDims[2];
+    const size_t maskW = maskDims[3];
 
-    const float *boxData = engineOutputBatch.at(boxKey).ptr<float>();
-    const float *maskData = engineOutputBatch.at(maskKey).ptr<float>();
-    const float *scoreData = engineOutputBatch.at(scoreKey).ptr<float>();
-    const float *labelData = engineOutputBatch.at(labelKey).ptr<float>();
+    if (processedBatch.size() < batchSize) {
+        processedBatch.resize(batchSize);
+    }
+
+    const float *boxData = engineOutputViews.at(boxKey).ptr<float>();
+    const float *maskData = engineOutputViews.at(maskKey).ptr<float>();
+    const float *scoreData = engineOutputViews.at(scoreKey).ptr<float>();
+    const float *labelData = engineOutputViews.at(labelKey).ptr<float>();
 
     for (size_t b = 0; b < batchSize; ++b) {
 
@@ -76,7 +83,7 @@ void YoloSegCpuPostProcessorSimple::process(
         candObjIndexes.reserve(nBoxes);
         candLabels.reserve(nBoxes);
 
-        NVTX_RANGE("ExtractBoxesAndScores");
+        
         for (size_t i = 0; i < nBoxes; ++i) {
 
             const float *currBoxData = boxData + idx3(b, i, 0, nBoxes, 4);
@@ -85,7 +92,7 @@ void YoloSegCpuPostProcessorSimple::process(
 
             const float objectness = *currScoreData;
             const size_t clsLabel = *currLabelData;
-            
+
             // OpenCV NMS requires boxes to be of double or int.
             const double x1 = currBoxData[0];
             const double y1 = currBoxData[1];
@@ -98,7 +105,7 @@ void YoloSegCpuPostProcessorSimple::process(
 
             const double bw = x2 - x1;
             const double bh = y2 - y1;
-            
+
             if (objectness >= m_confidenceThresh) {
                 candBoxes.emplace_back(x1, y1, bw, bh);
                 candObjIndexes.push_back(i);
@@ -107,7 +114,7 @@ void YoloSegCpuPostProcessorSimple::process(
             }
 
         }
-        NVTX_POP();
+        
 
         if (candBoxes.empty()) {
             logger.logConcatMessage(Severity::kINFO, "No detections above threshold for batch item ", b, "\n");
@@ -117,7 +124,7 @@ void YoloSegCpuPostProcessorSimple::process(
         // Since Ultralytics doesn't support NMS for end-to-end models.
         // Applying non-maximal suppression, indices has to be of type [int]
         std::vector<int> nmsIndices;
-        NVTX_RANGE("OpenCV_NMS");
+        
         cv::dnn::NMSBoxes(
             candBoxes,
             candScores,
@@ -126,8 +133,8 @@ void YoloSegCpuPostProcessorSimple::process(
             nmsIndices,
             1.f,
             m_maxDetections);
-        NVTX_POP();
         
+
         int detId = 0;
         processedBatch[b].detections.reserve(nmsIndices.size());
 
@@ -136,16 +143,16 @@ void YoloSegCpuPostProcessorSimple::process(
             continue;
         }
         logger.logConcatMessage(Severity::kINFO, "Number of Detections: ", nmsIndices.size(), '\n');
+
         
-        NVTX_RANGE("GET_MASKS_AND_BOXES_PER_IMAGE");
         for (int k : nmsIndices) {
 
-            NVTX_RANGE("PROCESS_ONE_DETECTION");
+            
             if (detId >= m_maxDetections) {
                 break;
             }
 
-            const int objIdx = candObjIndexes[k];
+            const size_t objIdx = candObjIndexes[k];
             cv::Rect2d boundingBox = candBoxes[k];
             const size_t label = candLabels[k];
             const double objScore = candScores[k];
@@ -154,21 +161,19 @@ void YoloSegCpuPostProcessorSimple::process(
             cv::Mat instMask(maskH, maskW, CV_32F, currMaskData);
             cv::Mat detMask8 = getRoIMaskFromRaw(instMask, boundingBox, origImgW, origImgH, m_maskThresh);
             Detection det;
-            
+
             det.metadata.detectionId = detId;
             det.metadata.imgPath = processedBatch[b].metadata.imagePath;
+            getDetections(detMask8, boundingBox, label, objScore, det);
 
-            NVTX_POP();
-
-            if (!getDetections(detMask8, boundingBox, label, objScore, det)) {
-                logger.logConcatMessage(Severity::kINFO, "Couldn't Create Detections for frame: ", processedBatch[b].metadata.frameId, '\n');
-                continue;
+            if (det.objectContour.empty()) {
+                logger.logConcatMessage(Severity::kINFO, "Couldn't get mask contour for frame: ", processedBatch[b].metadata.frameId, '\n');
             }
-            
+
             processedBatch[b].detections.push_back(std::move(det));
 
             ++detId;
         }
-        NVTX_POP();
+        
     }
 }

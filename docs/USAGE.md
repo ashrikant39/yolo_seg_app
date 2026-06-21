@@ -1,54 +1,51 @@
-# Usage (CLI + C++ API)
+# Usage
 
-> Build dependency note (Ubuntu): install TensorRT/OpenCV packages first (see `README.md`), then configure/build with CMake.
+> Build dependency note: the full app target requires CUDA, TensorRT, OpenCV, `cxxopts`, and `yaml-cpp`.
 
 ## CLI
 
-Folder-based (batched) inference:
+Run the application from a YAML configuration file:
 
 ```bash
-./bin/yoloSegApp \
-  --mode folder \
-  --enginePath /path/to/model.engine \
-  --videoDirPath /path/to/images \
-  --saveDirPath /path/to/output_dir \
-  --logPath /path/to/run.log \
-  --logModelInfo true
+./bin/yoloSegApp --config /path/to/config.yaml
 ```
 
-Notes:
+or positionally:
 
-- Input images are discovered in `videoDirPath` by scanning for `.png` and `.jpg`.
-- Output files are written to `saveDirPath`:
-  - `<image_stem>_seg_vis.png`
-  - `<image_stem>_det<i>_mask.png`
+```bash
+./bin/yoloSegApp /path/to/config.yaml
+```
+
+See `configs/YoloSegSimple.yaml` for the expected configuration shape.
+
+## Configuration Ownership
+
+`main.cpp` only parses the YAML path and calls:
+
+```cpp
+Application app(configPath);
+app.run();
+```
+
+All construction values come from YAML, including:
+
+- logging path and severity
+- frame source type/path/shape/batch size
+- preprocessing options
+- inference backend/model path/device
+- memory tensor buffer groups
+- input/output tensor specs
+- postprocessing thresholds/options
+- result sink mode and `resultsDir`
 
 ## C++ API
 
-The main abstraction is `InferencePipeline`.
-
 ```cpp
-#include "pipeline.hpp"
+#include "application/Application.hpp"
 
 int main() {
-  InferencePipeline pipeline(
-      "/path/to/model.engine",
-      "/path/to/run.log",
-      "/path/to/images",
-      "/path/to/output_dir",
-      /*logModelInformation=*/true
-  );
-
-  pipeline.runInferencePipeline();
-  return 0;
+    Application app("/path/to/config.yaml");
+    app.run();
+    return 0;
 }
 ```
-
-What the pipeline does:
-
-1. Deserializes the `.engine`.
-2. Allocates CUDA tensors (GPU/unified memory) for all I/O tensors.
-3. Preprocesses images with `cv::dnn::blobFromImage` into an FP16 tensor.
-4. Runs `enqueueV3()` using a CUDA stream.
-5. Decodes outputs in `PostProcessor` and writes results to disk.
-

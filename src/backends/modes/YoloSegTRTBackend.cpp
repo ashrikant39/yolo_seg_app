@@ -10,7 +10,7 @@ YoloSegTRTBackend::YoloSegTRTBackend(
 
         // Check if runtime is set
         if(!m_runtime){
-            m_logger.log(Severity::kERROR, "Failed to create TensorRT runtime.");
+            m_logger.log(TrtSeverity::kERROR, "Failed to create TensorRT runtime.");
             throw std::runtime_error("Failed to create TensorRT runtime.");
         }
         // Deserialize the model (in .engine file) and create an engine for running inference
@@ -25,67 +25,97 @@ YoloSegTRTBackend::YoloSegTRTBackend(
                 engineData.size()
             )
         );
-        
-        if(!m_engine){   
-            m_logger.log(Severity::kERROR, "Failed to create TensorRT engine.");
+
+        if(!m_engine){
+            m_logger.log(TrtSeverity::kERROR, "Failed to create TensorRT engine.");
             throw std::runtime_error("Failed to create TensorRT engine.");
         }
 
         m_context = std::unique_ptr<nvinfer1::IExecutionContext>(m_engine->createExecutionContext());
 
-        if(!m_context){   
-            m_logger.log(Severity::kERROR, "Failed to create Execution Context for engine.");
+        if(!m_context){
+            m_logger.log(TrtSeverity::kERROR, "Failed to create Execution Context for engine.");
             throw std::runtime_error("Failed to create Execution Context for engine.");
         }
 }
 
-TensorInfoMap YoloSegTRTBackend::getTensorInfos() {
+TensorSpecMap YoloSegTRTBackend::getTensorSpecs() {
 
-    TensorInfoMap infoMap;
-    
+    TensorSpecMap infoMap;
+
     for (const auto& mode : SupportedTensorModes) {
-        for (const std::string& name : getTensorNames(mode) ) {
+        for (const std::string& name : getTensorNames(m_engine, mode) ) {
             infoMap.emplace(
                 name,
-                TensorInfo{
-                    fromTrtDims(m_engine->getTensorShape(name)),
-                    fromTrtDType(m_engine->getTensorDataType(name)),
-                    mode
+                TensorSpec {
+                    TrtDims2Shape(m_engine->getTensorShape(name.c_str())),
+                    TrtType2DataType(m_engine->getTensorDataType(name.c_str())),
+                    TrtIOMode2IOMode(mode)
                 }
-            )
+            );
         }
     }
 
     return infoMap;
 }
 
+void YoloSegTRTBackend::bindTensorViewMap(const TensorViewMap& bufferViews) {
+
+    for (const auto& [name, tv] : bufferViews) {
+        if (tv.memoryType != MemoryType::CudaMem && tv.memoryType != MemoryType::Unified) {
+            continue;
+        }
+
+        if (!tv.data) {
+            throw std::runtime_error("Memory not allocated for tensor: " + name);
+        }
+        // cudaPointerAttributes attributes;
+        // cudaError_t error = cudaPointerGetAttributes(&attributes, tv.data);
+
+        // switch (attributes.type) {
+        //     case cudaMemoryTypeUnregistered:
+        //         std::cout << "Host memory (unregistered)" << std::endl;
+        //         break;
+        //     case cudaMemoryTypeHost:
+        //         std::cout << "Host memory (pinned/allocated via cudaHostAlloc)" << std::endl;
+        //         break;
+        //     case cudaMemoryTypeDevice:
+        //         std::cout << "CUDA Device memory (allocated via cudaMalloc)" << std::endl;
+        //         break;
+        //     case cudaMemoryTypeManaged:
+        //         std::cout << "Unified / Managed memory (accessible by both CPU and GPU)" << std::endl;
+        //         break;
+        // }
+
+        m_context->setTensorAddress(name.c_str(), tv.data);
+    }
+}
+
 
 bool YoloSegTRTBackend::runInference(
-    const TensorViewMap& inputTensors,
-    TensorViewMap& outputTensors,
+    const TensorViewMap& inputBufferViews,
+    TensorViewMap& outputBufferViews,
     cudaStream_t stream
 ) {
-    
+
     if (!(
-        tensorMapInDevice(inputTensors, DeviceType::CUDA) ||
-        tensorMapInDevice(inputTensors, DeviceType::Unified)
+        TensorViewsOnDevice(inputBufferViews, DeviceType::CUDA) ||
+        TensorViewsInMemory(inputBufferViews, MemoryType::Unified)
     )) {
-        throw std::runtime_error("All Input tensors must either be allocated in either GPU Mem or Unified Mem.");
+        throw std::runtime_error("All input buffer views must reference either GPU memory or unified memory.");
     }
 
     if (!(
-        tensorMapInDevice(outputTensors, DeviceType::CUDA) ||
-        tensorMapInDevice(outputTensors, DeviceType::Unified)
+        TensorViewsOnDevice(outputBufferViews, DeviceType::CUDA) ||
+        TensorViewsInMemory(outputBufferViews, MemoryType::Unified)
     )) {
-        throw std::runtime_error("All Output tensors must either be allocated in either GPU Mem or Unified Mem.");
+        throw std::runtime_error("All output buffer views must reference either GPU memory or unified memory.");
     }
 
-    NVTX_RANGE("EnqueueV3");
     if ( !m_context->enqueueV3(stream) ) {
-        m_logger.log(Severity::kERROR, "EnqueueV3 Failed.");
+        m_logger.log(TrtSeverity::kERROR, "EnqueueV3 Failed.");
         throw std::runtime_error("EnqueueV3 Failed: \n");
     }
-    NVTX_POP();
 
     return true;
 }

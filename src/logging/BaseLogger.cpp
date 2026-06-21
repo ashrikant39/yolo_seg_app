@@ -1,7 +1,11 @@
 #include <iostream>
 
 #include "logging/BaseLogger.hpp"
-#include "AppSettings.hpp"
+
+namespace {
+constexpr const char* DEFAULT_LOG_FILE = "main.log";
+constexpr LoggingSeverityType DEFAULT_LOG_SEVERITY = LoggingSeverityType::INFO;
+} // namespace
 
 bool BaseLogger::assignStream(){
 
@@ -13,40 +17,42 @@ bool BaseLogger::assignStream(){
     } else {
         throw std::runtime_error("Failed to open file: " + m_logFilePath.string());
     }
+
+    return true;
 }
 
 BaseLogger::BaseLogger():
-    m_severity(DefaultSettings::DEFAULT_LOG_SEVERITY),
-    m_logFilePath(DefaultSettings::DEFAULT_LOG_FILE) {
+    m_severity(DEFAULT_LOG_SEVERITY),
+    m_logFilePath(DEFAULT_LOG_FILE) {
         assignStream();
     }
 
 BaseLogger::BaseLogger(const fs::path& fileName):
-    m_severity(DefaultSettings::DEFAULT_LOG_SEVERITY),
+    m_severity(DEFAULT_LOG_SEVERITY),
     m_logFilePath(fileName) {
         assignStream();
     }
 
-BaseLogger::BaseLogger(const fs::path& fileName, LoggingSeverity severity):
+BaseLogger::BaseLogger(const fs::path& fileName, LoggingSeverityType severity):
     m_severity(severity),
     m_logFilePath(fileName) {
         assignStream();
     }
 
-void BaseLogger::log(LoggingSeverity severity, const char* msg) noexcept {
+void BaseLogger::log(LoggingSeverityType severity, const char* msg) noexcept {
     
     try {
 
         std::lock_guard<std::mutex> lock(m_loggerMutex);
         
-        if(severity <= m_severity) {
-            if(severity == LoggingSeverity::INTERNAL_ERROR)
+        if(severity >= m_severity) {
+            if(severity == LoggingSeverityType::INTERNAL_ERROR)
                 m_logStream << "[INTERNAL ERROR] " << msg << '\n';
 
-            else if(severity == LoggingSeverity::ERROR)
+            else if(severity == LoggingSeverityType::ERROR)
                 m_logStream << "[ERROR] " << msg << '\n';
 
-            else if(severity == LoggingSeverity::WARNING)
+            else if(severity == LoggingSeverityType::WARNING)
                 m_logStream << "[WARNING] " << msg << '\n';
             
             else

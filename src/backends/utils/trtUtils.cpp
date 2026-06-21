@@ -21,7 +21,7 @@ std::vector<char> readEngineFileToArray(const fs::path& fileName) {
 
 
 std::vector<std::string> getTensorNames(
-    const std::unique_ptr<nvinfer1::ICudaEngine> engine,
+    const std::unique_ptr<nvinfer1::ICudaEngine>& engine,
     nvinfer1::TensorIOMode mode
 ) {
     
@@ -43,29 +43,29 @@ std::vector<std::string> getTensorNames(
 
 void logFullModelInfo(
     TrtLoggerAdaptor& logger,
-    const std::unique_ptr<nvinfer1::ICudaEngine> engine
+    const std::unique_ptr<nvinfer1::ICudaEngine>& engine
 ) {
 
     for (const std::string& name : getTensorNames(engine, nvinfer1::TensorIOMode::kINPUT)) {
-        logger.logTensorDims(TrtSeverity::kINFO, name, engine->getTensorShape(name));
+        logger.logTensorDims(TrtSeverity::kINFO, name, engine->getTensorShape(name.c_str()));
     }
 
     for (const std::string& name : getTensorNames(engine, nvinfer1::TensorIOMode::kOUTPUT)) {
-        logger.logTensorDims(TrtSeverity::kINFO, name, engine->getTensorShape(name));
+        logger.logTensorDims(TrtSeverity::kINFO, name, engine->getTensorShape(name.c_str()));
     }
 
     for (const std::string& name : getTensorNames(engine, nvinfer1::TensorIOMode::kNONE)) {
-        logger.logTensorDims(TrtSeverity::kINFO, name, engine->getTensorShape(name));
+        logger.logTensorDims(TrtSeverity::kINFO, name, engine->getTensorShape(name.c_str()));
     }
 
-    logger.log(Severity::kINFO, "Logging Layers Info of first and last few layers.\n");
+    logger.log(TrtSeverity::kINFO, "Logging Layers Info of first and last few layers.\n");
 
     std::unique_ptr<nvinfer1::IEngineInspector> engineInspector(engine->createEngineInspector());
     int numLayers = engine->getNbLayers();
     
     for(int layerIdx=0; layerIdx<5; layerIdx++){
         logger.logConcatMessage(
-            Severity::kINFO,
+            TrtSeverity::kINFO,
             "Layer Index:",
             layerIdx,
             '\t',
@@ -78,7 +78,7 @@ void logFullModelInfo(
 }
 
 
-Shape fromTrtDims(const nvinfer1::Dims& dims) {
+Shape TrtDims2Shape(const nvinfer1::Dims& dims) {
 
     Shape shape;
     shape.dims.resize(dims.nbDims);
@@ -90,7 +90,7 @@ Shape fromTrtDims(const nvinfer1::Dims& dims) {
     return shape;
 }
 
-nvinfer1::Dims toTrtDims(const Shape& shape) {
+nvinfer1::Dims ShapetoTrtDims(const Shape& shape) {
 
     nvinfer1::Dims dims;
     dims.nbDims = shape.rank();
@@ -98,4 +98,6 @@ nvinfer1::Dims toTrtDims(const Shape& shape) {
     for (size_t i = 0; i < shape.rank(); i++) {
         dims.d[i] = static_cast<int64_t>(shape[i]);
     }
+
+    return dims;
 }

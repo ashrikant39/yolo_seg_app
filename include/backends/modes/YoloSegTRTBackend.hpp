@@ -6,7 +6,6 @@
 #include "logging/BackendLoggers/TrtLoggerAdaptor.hpp"
 #include "backends/interface/InferenceBackend.hpp"
 #include "backends/config/InferenceBackendConfig.hpp"
-#include "core/logger.hpp"
 #include "backends/utils/trtUtils.hpp"
 
 
@@ -23,19 +22,16 @@ class YoloSegTRTBackend : public InferenceBackend {
             const InferenceBackendConfig& config,
             BaseLogger& baseLogger
         );
-        
-        bool setDeviceTensorAddresses(
-            const TensorViewMap& inputTensors,
-            const TensorViewMap& outputTensors
-        )
+
+        void bindTensorViewMap(const TensorViewMap& bufferViews) override;
 
         bool runInference(
-            const TensorViewMap& inputTensors,
-            TensorViewMap& outputTensors,
+            const TensorViewMap& inputBufferViews,
+            TensorViewMap& outputBufferViews,
             cudaStream_t stream
         ) override;
-        
-        TensorInfoMap getTensorInfos() override;
+
+        TensorSpecMap getTensorSpecs() override;
 
     private:
         TrtLoggerAdaptor m_logger;

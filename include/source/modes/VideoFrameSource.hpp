@@ -9,17 +9,18 @@ class VideoFrameSource : public FrameSource {
     public:
         VideoFrameSource(const FrameSourceConfig& config);
 
-        bool read(Frame& frame, Logger& logger) override;
+        bool read(Frame& frame, BaseLogger& logger) override;
 
         double getFPS() {
-            return cap.get(cv::CAP_PROP_FPS);
+            return m_cap.get(cv::CAP_PROP_FPS);
         }
 
         size_t getTotalFrames() {
-            return cap.get(cv::CAP_PROP_FRAME_COUNT);
+            return m_cap.get(cv::CAP_PROP_FRAME_COUNT);
         }
     
     private:
         fs::path m_videoPath;
         cv::VideoCapture m_cap;
+        size_t m_paddingFrameId = 0;
 };
