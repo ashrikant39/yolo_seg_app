@@ -1,0 +1,92 @@
+logging:
+  logFilePath: logs/firstChecks.log
+  loggingSeverity: info
+
+frame_source:
+  frameSourceType: folder
+  frameSourcePath: assets/dummy_images_jpeg
+  origImgHeight: 512
+  origImgWidth: 1024
+  batchSize: 1
+
+preprocess:
+  imgChannelOrdering: bgr
+  imgPreProcessedImgH: 512
+  imgPreProcessedImgW: 1024
+  preprocessedDataType: float16
+  imgPreProcessScalingFactor: 0.00392156862745098 # 1/255.
+  imgPreProcessingMeanFactor: 0.0
+  preferredDevicePreProc: cpu
+  ndimsOfInputs:
+    images: 4
+
+backend:
+  inferenceBackendType: yolo_seg_trt
+  modelType: yolo_segmentation
+  outputType: yolo_modified_segmentation
+  preferredInferenceDevice: gpu
+  serializedModelPath: assets/engines/last_bs1_nms_modified_fp32.engine
+
+memory:
+  preProcessingTensorGroups:
+    - PinnedInput
+  inferenceTensorGroups:
+    - DeviceInput
+    - DeviceOutput
+  postProcessingTensorGroups:
+    - PinnedOutput
+    - HostPostProcessOutput
+
+inputTensorSpecs:
+  images:
+    shape: [1, 3, 512, 1024]
+    dtype: float16
+    mode: input
+
+outputTensorSpecs:
+  boxes:
+    shape: [1, 300, 4]
+    dtype: float32
+    mode: output
+
+  masks:
+    shape: [1, 300, 128, 256]
+    dtype: float32
+    mode: output
+
+  classlabel:
+    shape: [1, 300, 1]
+    dtype: float32
+    mode: output
+
+  objectness:
+    shape: [1, 300, 1]
+    dtype: float32
+    mode: output
+
+postprocess:
+  preferredDevicePostProc: cpu
+  outputType: yolo_modified_segmentation
+  confThreshold: 0.30
+  iouThreshold: 0.50
+  maskThreshold: 0.50
+  maxDetections: 300
+  outputTensorStartLocs:
+    boxes: 0
+    masks: 0
+    classlabel: 0
+    objectness: 0
+
+result_sink:
+  resultsDir: assets/dummy_results_jpeg
+  resultSinkType: save_detections
+  saveDetMode: normalized
+  drawDetMode: unset
+  lineThickness: 1
+
+# result_sink:
+#   resultsDir: assets/dummy_results_latest_drawn
+#   resultSinkType: draw_detections
+#   saveDetMode: unset
+#   drawDetMode: contours_with_boxes
+#   lineThickness: 1

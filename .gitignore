@@ -8,7 +8,6 @@ coc-settings.json
 **/*.log
 dumps/
 commands/
-tests/
 logs/
 *.txt
 *.log
@@ -16,3 +15,7 @@ logs/
 **/*.sqlite
 **/*.csv
 scripts/
+tests/
+yolo_seg_application_config_test/
+extras/
+docs/codebase_mind_map.md
