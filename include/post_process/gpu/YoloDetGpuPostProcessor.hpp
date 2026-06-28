@@ -9,19 +9,19 @@
 namespace fs = std::filesystem;
 
 /**
- * @brief CPU-side Simple post-processing for YOLO-seg style TensorRT outputs.
- *
- * Responsibilities:
- * - convert output tensor buffers from FP16 to FP32 host buffers,
- * - decode boxes/scores/mask coefficients,
- * - run NMS,
- * - generate and save segmentation outputs.
+ * @brief GPU-side postprocessor for YOLO detection outputs.
  */
 class YoloDetGpuPostProcessor : public PostProcessor {
 
     public:
+        /**
+         * @brief Creates a GPU detection postprocessor from YAML-derived settings.
+         */
         explicit YoloDetGpuPostProcessor(const PostProcessorConfig& config);
 
+        /**
+         * @brief Converts model output tensors into per-frame detections.
+         */
         void process(
             const TensorViewMap& engineOutputViews,
             std::vector<PostProcessOutput>& processedBatch,

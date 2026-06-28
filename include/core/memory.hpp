@@ -7,6 +7,9 @@
 #include "core/cuda.hpp"
 #include "core/enums.hpp"
 
+/**
+ * @brief Pageable host allocation policy for Tensor.
+ */
 struct MallocHostPolicy {
     static constexpr DeviceType deviceType = DeviceType::CPU;
     static constexpr MemoryType memoryType = MemoryType::PageableHost;
@@ -24,6 +27,9 @@ struct MallocHostPolicy {
     }
 };
 
+/**
+ * @brief CUDA pinned host allocation policy for Tensor.
+ */
 struct PinnedHostPolicy {
     static constexpr DeviceType deviceType = DeviceType::CPU;
     static constexpr MemoryType memoryType = MemoryType::PinnedHost;
@@ -48,6 +54,9 @@ struct PinnedHostPolicy {
     }
 };
 
+/**
+ * @brief CUDA device allocation policy for Tensor.
+ */
 struct CudaDevicePolicy {
     static constexpr DeviceType deviceType = DeviceType::CUDA;
     static constexpr MemoryType memoryType = MemoryType::CudaMem;
@@ -72,6 +81,9 @@ struct CudaDevicePolicy {
     }
 };
 
+/**
+ * @brief CUDA unified memory allocation policy for Tensor.
+ */
 struct UnifiedMemoryPolicy {
     static constexpr DeviceType deviceType = DeviceType::CUDA;
     static constexpr MemoryType memoryType = MemoryType::Unified;

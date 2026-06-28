@@ -48,12 +48,19 @@ do {                                                                      \
     #define NVTX_POP()      do { } while(0)
 #endif
 
+/**
+ * @brief Return the active CUDA device id.
+ * @throws std::runtime_error on CUDA failure.
+ */
 inline int currentCudaDevice() {
     int device = 0;
     CUDA_THROW(cudaGetDevice(&device));
     return device;
 }
 
+/**
+ * @brief unique_ptr deleter for cudaMalloc memory.
+ */
 template <typename T>
 struct DevicePtrDeleter {
     void operator()(T *ptr) const noexcept {
@@ -63,6 +70,9 @@ struct DevicePtrDeleter {
     }
 };
 
+/**
+ * @brief unique_ptr deleter for cudaMallocHost memory.
+ */
 template <typename T>
 struct PinnedPtrDeleter {
     void operator()(T *ptr) const noexcept {
@@ -72,6 +82,9 @@ struct PinnedPtrDeleter {
     }
 };
 
+/**
+ * @brief unique_ptr deleter for cudaMallocManaged memory.
+ */
 template <typename T>
 struct ManagedPtrDeleter {
     void operator()(T *ptr) const noexcept {
@@ -81,17 +94,29 @@ struct ManagedPtrDeleter {
     }
 };
 
+/**
+ * @brief RAII wrapper around cudaStream_t.
+ *
+ * Default construction leaves the stream as nullptr, which is suitable for CPU
+ * paths. createStream() lazily creates a CUDA stream for GPU paths.
+ */
 class CudaStream {
 
     public:
         CudaStream() = default;
 
+        /**
+         * @brief Create and return a valid CUDA stream wrapper.
+         */
         static CudaStream create() {
             CudaStream stream;
             stream.createStream();
             return stream;
         }
 
+        /**
+         * @brief Lazily create the CUDA stream if not already valid.
+         */
         void createStream() {
             if (m_stream) {
                 return;
@@ -105,6 +130,9 @@ class CudaStream {
             }
         }
 
+        /**
+         * @brief Destroy the owned stream if one exists.
+         */
         ~CudaStream() {
             if (m_stream) {
                 cudaStreamDestroy(m_stream);
@@ -129,14 +157,23 @@ class CudaStream {
             return *this;
         }
 
+        /**
+         * @brief Return the wrapped cudaStream_t, possibly nullptr.
+         */
         cudaStream_t get() const noexcept {
             return m_stream;
         }
 
+        /**
+         * @brief True when a CUDA stream has been created.
+         */
         bool valid() const noexcept {
             return m_stream != nullptr;
         }
 
+        /**
+         * @brief Implicit conversion to cudaStream_t for CUDA APIs.
+         */
         operator cudaStream_t() const noexcept {
             return m_stream;
         }

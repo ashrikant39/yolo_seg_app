@@ -19,18 +19,31 @@
 #include "core/enums.hpp"
 #include "core/memory.hpp"
 
+/**
+ * @brief Runtime tensor shape represented as size_t dimensions.
+ */
 struct Shape {
     std::vector<size_t> dims;
 
+    /**
+     * @brief Number of dimensions.
+     */
     size_t rank() const {
         return dims.size();
     }
 
+    /**
+     * @brief Bounds-checked dimension access.
+     */
     size_t operator[](size_t index) const {
         return dims.at(index);
     }
 };
 
+/**
+ * @brief Return scalar byte size for a DataType.
+ * @throws std::runtime_error for unsupported data types.
+ */
 inline size_t getSize(DataType dtype) {
     switch (dtype) {
         case DataType::Float32:
@@ -54,6 +67,9 @@ inline size_t getSize(DataType dtype) {
     }
 }
 
+/**
+ * @brief Compute product of all shape dimensions.
+ */
 inline size_t getTotalNumElements(const Shape& shape) {
     return std::accumulate(
         shape.dims.begin(),
@@ -63,6 +79,9 @@ inline size_t getTotalNumElements(const Shape& shape) {
     );
 }
 
+/**
+ * @brief Compile-time mapping from C++ scalar type to DataType.
+ */
 template <typename T>
 struct TensorDataType;
 
@@ -101,6 +120,9 @@ struct TensorDataType<bool> {
     static constexpr auto value = DataType::Bool;
 };
 
+/**
+ * @brief Type trait indicating whether TensorDataType<T> is defined.
+ */
 template <typename, typename = void>
 struct HasTensorDataType : std::false_type {};
 
@@ -108,6 +130,10 @@ template <typename T>
 struct HasTensorDataType<T, std::void_t<decltype(TensorDataType<T>::value)>>
     : std::true_type {};
 
+/**
+ * @brief Validate that a requested pointer type matches a tensor DataType.
+ * @throws std::runtime_error when actual does not match TensorDataType<T>.
+ */
 template <typename T>
 inline void validateTensorDataType(DataType actual) {
     static_assert(
@@ -120,6 +146,9 @@ inline void validateTensorDataType(DataType actual) {
     }
 }
 
+/**
+ * @brief Non-owning view over tensor storage.
+ */
 struct TensorView {
     void* data = nullptr;
     DataType type = DataType::Float32;
@@ -130,12 +159,18 @@ struct TensorView {
     DeviceType device = DeviceType::UNSET;
     MemoryType memoryType = MemoryType::UNSET;
 
+    /**
+     * @brief Return mutable typed pointer after dtype validation.
+     */
     template <typename T>
     T* ptr() {
         validateTensorDataType<T>(type);
         return reinterpret_cast<T*>(data);
     }
 
+    /**
+     * @brief Return const typed pointer after dtype validation.
+     */
     template <typename T>
     const T* ptr() const {
         validateTensorDataType<T>(type);
@@ -143,6 +178,11 @@ struct TensorView {
     }
 };
 
+/**
+ * @brief Owning tensor buffer parameterized by an allocation policy.
+ *
+ * AllocPolicy decides where bytes are allocated and which deleter is used.
+ */
 template <typename AllocPolicy>
 class Tensor {
     public:
@@ -150,6 +190,12 @@ class Tensor {
 
         Tensor() = default;
 
+        /**
+         * @brief Allocate tensor storage.
+         * @param dtype Scalar data type.
+         * @param shape Tensor shape.
+         * @param mode Input/output mode.
+         */
         Tensor(DataType dtype, const Shape& shape, IOMode mode):
             m_dtype(dtype),
             m_numElements(getTotalNumElements(shape)),
@@ -160,30 +206,51 @@ class Tensor {
             m_device(AllocPolicy::deviceType),
             m_memoryType(AllocPolicy::memoryType) {}
 
+        /**
+         * @brief Number of tensor elements.
+         */
         size_t numel() const {
             return m_numElements;
         }
 
+        /**
+         * @brief Total storage size in bytes.
+         */
         size_t getTotalBytes() const {
             return m_numBytes;
         }
 
+        /**
+         * @brief Tensor scalar data type.
+         */
         DataType getDataType() const {
             return m_dtype;
         }
 
+        /**
+         * @brief Tensor shape.
+         */
         Shape shape() const {
             return m_shape;
         }
 
+        /**
+         * @brief Tensor IO mode.
+         */
         IOMode getIOMode() const {
             return m_mode;
         }
 
+        /**
+         * @brief Mutable raw storage pointer.
+         */
         void* rawPtr() {
             return m_ptr.get();
         }
 
+        /**
+         * @brief Const raw storage pointer.
+         */
         const void* rawPtr() const {
             return m_ptr.get();
         }
@@ -200,6 +267,9 @@ class Tensor {
         //     return reinterpret_cast<const T*>(rawPtr());
         // }
 
+        /**
+         * @brief Create a non-owning view over this tensor.
+         */
         TensorView view() const {
             return TensorView{
                 .data = m_ptr.get(),
@@ -244,6 +314,9 @@ using TensorStorageMap = std::variant<
 using TensorViewMap = std::unordered_map<std::string, TensorView>;
 using TensorSpecMap = std::unordered_map<std::string, TensorSpec>;
 
+/**
+ * @brief Build a TensorViewMap from an owning tensor map.
+ */
 template <typename TensorMapType>
 TensorViewMap getTensorViews(const TensorMapType& tensorMap) {
     TensorViewMap views;
@@ -255,6 +328,9 @@ TensorViewMap getTensorViews(const TensorMapType& tensorMap) {
     return views;
 }
 
+/**
+ * @brief Check if every tensor view is on a given device.
+ */
 inline bool TensorViewsOnDevice(const TensorViewMap& TensorViews, DeviceType device) {
     for (const auto& [name, TensorView] : TensorViews) {
         if (TensorView.device != device) {
@@ -264,6 +340,9 @@ inline bool TensorViewsOnDevice(const TensorViewMap& TensorViews, DeviceType dev
     return true;
 }
 
+/**
+ * @brief Check if every tensor view uses a given memory type.
+ */
 inline bool TensorViewsInMemory(const TensorViewMap& TensorViews, MemoryType memoryType) {
     for (const auto& [name, TensorView] : TensorViews) {
         if (TensorView.memoryType != memoryType) {
@@ -273,10 +352,16 @@ inline bool TensorViewsInMemory(const TensorViewMap& TensorViews, MemoryType mem
     return true;
 }
 
+/**
+ * @brief Numerically clamped sigmoid helper.
+ */
 inline float sigmoid(float x) {
     return 1.f / (1.f + std::exp(-std::clamp(x, -50.f, 50.f)));
 }
 
+/**
+ * @brief Compute flattened row-major index for a 4D tensor.
+ */
 inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3) {
     return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2 * D3) +
            static_cast<size_t>(i1) * static_cast<size_t>(D2 * D3) +
@@ -284,12 +369,18 @@ inline size_t idx4(int b, int i1, int i2, int i3, int D1, int D2, int D3) {
            static_cast<size_t>(i3);
 }
 
+/**
+ * @brief Compute flattened row-major index for a 3D tensor.
+ */
 inline size_t idx3(int b, int i1, int i2, int D1, int D2) {
     return static_cast<size_t>(b) * static_cast<size_t>(D1 * D2) +
            static_cast<size_t>(i1) * static_cast<size_t>(D2) +
            static_cast<size_t>(i2);
 }
 
+/**
+ * @brief Convert CUDA half values to float.
+ */
 inline void castHalfToFloat(float* dst, const __half* src, size_t numElements) {
     for (size_t i = 0; i < numElements; ++i) {
         dst[i] = __half2float(src[i]);

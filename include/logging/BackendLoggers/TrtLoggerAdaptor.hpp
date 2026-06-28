@@ -6,6 +6,9 @@
 
 using TrtSeverity = nvinfer1::ILogger::Severity;
 
+/**
+ * @brief Converts TensorRT logger severity to the application logger severity.
+ */
 inline LoggingSeverityType getBaseLoggerSeverity(TrtSeverity severity) noexcept {
 
     switch (severity) {
@@ -30,13 +33,22 @@ inline LoggingSeverityType getBaseLoggerSeverity(TrtSeverity severity) noexcept 
     }
 }
 
+/**
+ * @brief Adapter that routes TensorRT logger callbacks into BaseLogger.
+ */
 class TrtLoggerAdaptor : public nvinfer1::ILogger {
 
     public:
+        /**
+         * @brief Creates an adapter over an existing application logger.
+         */
         explicit TrtLoggerAdaptor(BaseLogger& logger):
             m_baseLogger(logger) {
         }
 
+        /**
+         * @brief TensorRT logger callback implementation.
+         */
         void log(TrtSeverity severity, const char *msg) noexcept override {
             m_baseLogger.log(
                 getBaseLoggerSeverity(severity),
@@ -44,6 +56,9 @@ class TrtLoggerAdaptor : public nvinfer1::ILogger {
             );
         }
 
+        /**
+         * @brief Writes one concatenated TensorRT-scoped log message.
+         */
         template <class ...Ts>
         void logConcatMessage(TrtSeverity severity, Ts&&... xs) {
             m_baseLogger.logConcatMessage(
@@ -52,6 +67,9 @@ class TrtLoggerAdaptor : public nvinfer1::ILogger {
             );
         }
 
+        /**
+         * @brief Logs a TensorRT tensor shape in a compact human-readable format.
+         */
         void logTensorDims(TrtSeverity severity,
             const std::string& tensorName,
             const nvinfer1::Dims& tensorDims

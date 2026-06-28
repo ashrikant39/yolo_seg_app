@@ -18,13 +18,37 @@
 #include "sinks/factory/ResultSinkFactory.hpp"
 
 
+/**
+ * @brief Top-level YOLO segmentation application.
+ *
+ * Application owns the configured frame source, preprocessing stage, inference
+ * backend, postprocessor, result sink, logger, and memory manager. It is
+ * normally constructed from a YAML file and then executed with run().
+ */
 class Application {
 
     public:
+        /**
+         * @brief Build the full application from a YAML configuration file.
+         * @param yamlPath Path to a YAML file accepted by loadAppSettingsFromYaml().
+         * @throws std::runtime_error if configuration, output directories, model,
+         *         or component construction fails.
+         */
         explicit Application(const std::filesystem::path& yamlPath);
+
+        /**
+         * @brief Execute the full source -> preprocess -> inference -> postprocess -> sink loop.
+         *
+         * The loop processes full batches from the configured FrameSource and logs
+         * aggregate throughput when the source is exhausted.
+         */
         void run();
 
     private:
+        /**
+         * @brief Build the application from already parsed settings.
+         * @param settings Complete application settings.
+         */
         explicit Application(const AppSettings& settings);
 
         AppSettings m_settings;

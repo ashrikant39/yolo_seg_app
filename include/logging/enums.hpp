@@ -1,5 +1,8 @@
 #pragma once
 
+/**
+ * @brief Severity levels used by the application logger.
+ */
 enum class LoggingSeverityType {
     VERBOSE,
     INFO,
@@ -14,4 +17,7 @@ enum class LoggingSeverityType {
     kINTERNAL_ERROR = INTERNAL_ERROR
 };
 
+/**
+ * @brief Short alias for logger severity.
+ */
 using Severity = LoggingSeverityType;

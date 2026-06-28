@@ -10,20 +10,39 @@
 #include "logging/BackendLoggers/TrtLoggerAdaptor.hpp"
 
 namespace fs = std::filesystem;
+
+/**
+ * @brief Read a TensorRT engine file into a byte vector.
+ * @param fileName Serialized engine path.
+ * @return Engine bytes.
+ */
 std::vector<char> readEngineFileToArray(const fs::path& fileName);
 
+/**
+ * @brief Return TensorRT tensor names for a given IO mode.
+ * @param engine TensorRT engine.
+ * @param mode TensorRT tensor IO mode.
+ * @return Tensor names in engine order.
+ */
 std::vector<std::string> getTensorNames(
     const std::unique_ptr<nvinfer1::ICudaEngine>& engine,
     nvinfer1::TensorIOMode mode
 );
 
-
+/**
+ * @brief Log detailed model tensor information.
+ * @param logger TensorRT logger adaptor.
+ * @param engine TensorRT engine to inspect.
+ */
 void logFullModelInfo(
     TrtLoggerAdaptor& logger,
     const std::unique_ptr<nvinfer1::ICudaEngine>& engine
 );
 
 
+/**
+ * @brief Convert TensorRT IO mode to project IO mode.
+ */
 inline IOMode TrtIOMode2IOMode(nvinfer1::TensorIOMode trtmode) {
 
     switch (trtmode) {
@@ -43,6 +62,9 @@ inline IOMode TrtIOMode2IOMode(nvinfer1::TensorIOMode trtmode) {
 }
 
 
+/**
+ * @brief Convert project IO mode to TensorRT IO mode.
+ */
 inline nvinfer1::TensorIOMode IOMode2TrtIOMode(IOMode iomode) {
 
     switch (iomode) {
@@ -61,6 +83,9 @@ inline nvinfer1::TensorIOMode IOMode2TrtIOMode(IOMode iomode) {
     }
 }
 
+/**
+ * @brief Convert TensorRT scalar type to project DataType.
+ */
 inline DataType TrtType2DataType(nvinfer1::DataType trtType) {
 
     switch (trtType) {
@@ -96,6 +121,9 @@ inline DataType TrtType2DataType(nvinfer1::DataType trtType) {
 
 }
 
+/**
+ * @brief Convert project DataType to TensorRT scalar type.
+ */
 inline nvinfer1::DataType DataType2TrtType(DataType dtype) {
 
     switch (dtype) {
@@ -129,5 +157,12 @@ inline nvinfer1::DataType DataType2TrtType(DataType dtype) {
     }
 }
 
+/**
+ * @brief Convert TensorRT dimensions to Shape.
+ */
 Shape TrtDims2Shape(const nvinfer1::Dims& dims);
+
+/**
+ * @brief Convert Shape to TensorRT dimensions.
+ */
 nvinfer1::Dims ShapetoTrtDims(const Shape& shape);
