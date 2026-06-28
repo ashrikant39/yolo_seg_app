@@ -9,6 +9,9 @@
 
 namespace fs = std::filesystem;
 
+/**
+ * @brief Static tensor names required by the modified YOLO segmentation postprocessor.
+ */
 struct YoloSegCpuPostProcessorSimpleSettings {
     static constexpr std::string_view BoxKey = "boxes";
     static constexpr std::string_view MaskKey = "masks";
@@ -28,8 +31,15 @@ struct YoloSegCpuPostProcessorSimpleSettings {
 class YoloSegCpuPostProcessorSimple : public PostProcessor {
 
     public:
+        /**
+         * @brief Construct a CPU modified-output YOLO segmentation postprocessor.
+         * @param config Postprocessing thresholds and max detection count.
+         */
         YoloSegCpuPostProcessorSimple(const PostProcessorConfig& config);
 
+        /**
+         * @copydoc PostProcessor::process
+         */
         void process(
             const TensorViewMap& engineOutputViews,
             std::vector<PostProcessOutput>& processedBatch,

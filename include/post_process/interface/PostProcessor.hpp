@@ -12,17 +12,19 @@
 
 
 /**
- * @brief CPU-side Post Processor for YOLO-seg style TensorRT outputs.
- *
- * Responsibilities:
- * - decode boxes/scores/mask coefficients,
- * - run NMS,
- * - generate and save segmentation outputs.
+ * @brief Abstract interface for converting inference outputs into detections.
  */
 class PostProcessor {
     public:
         virtual ~PostProcessor() = default;
 
+        /**
+         * @brief Postprocess model output tensors.
+         * @param engineOutputViews Output tensor views keyed by model tensor name.
+         * @param processedBatch Batch outputs containing frame metadata and detections.
+         * @param logger Logger for diagnostics.
+         * @param stream CUDA stream used by GPU implementations, or nullptr for CPU paths.
+         */
         virtual void process(
             const TensorViewMap& engineOutputViews,
             std::vector<PostProcessOutput>& processedBatch,

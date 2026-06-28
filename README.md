@@ -1,107 +1,166 @@
-# yolo_seg_app
+# yolo_seg_app_cuda
 
-TensorRT + CUDA + OpenCV application for running YOLO-seg style models and decoding:
+TensorRT + CUDA + OpenCV application for running YOLO segmentation models from a
+YAML configuration file. The executable is intentionally thin: `main.cpp` parses
+the config path, constructs `Application`, and calls `Application::run()`.
 
-- detection boxes (after applying NMS from OpenCV)
-- instance segmentation masks
+## Current Run Model
 
-The project is currently in progress; the CLI supports **folder (batched) inference**.
+The application is configured entirely from YAML:
 
-The model files ("last_bs1.engine" and "last_bs1_nms_modified_fp32.engine") can be downloaded from [Asset Folder.](https://drive.google.com/drive/folders/1om3BMPzTnvqPSztqVBbbErkvHvNLsRlj?usp=drive_link)
+```bash
+./build/bin/yoloSegApp --config configs/YoloSegSimple.yaml
+```
 
-## What this repo uses
+or positionally:
 
-- **NVIDIA TensorRT**: loads a serialized `.engine`, creates an execution context, binds tensor addresses, and runs inference.
-- **CUDA**: manages the CUDA stream used by TensorRT and handles FP16 unified memory prefetching.
-- **OpenCV**: image loading (`imread`), preprocessing (`blobFromImage`), NMS (`cv::dnn::NMSBoxes`), and visualization/output writing.
-- **cxxopts**: command-line argument parsing.
+```bash
+./build/bin/yoloSegApp configs/YoloSegSimple.yaml
+```
 
-## Outputs
+The config controls:
 
-For each input image, the post-processor writes (to `--saveDirPath` / `saveDirPath`):
+- logging path and severity
+- folder or video frame source
+- preprocessing dimensions, dtype, scaling, and channel order
+- TensorRT backend and serialized engine path
+- memory groups for preprocessing, inference, and postprocessing
+- input/output tensor names, shapes, dtypes, and IO modes
+- postprocessing thresholds and output tensor offsets
+- result sink mode and output directory
 
-- `<image_stem>_detection.bin`: A binary file containing all the detections.
-- `<image_stem>_det<i>_mask.jpg`: raw instance masks for each selected detection `i` (after NMS)
+## Example Config
 
-## Post-processing assumptions
+See `configs/YoloSegSimple.yaml`.
 
-See: [`docs/POSTPROCESS.md`](docs/POSTPROCESS.md)
+Important sections:
 
-## Installation
-Refer to [`docs/install.md`](docs/install.md) for instructions on installation of packages.
+```yaml
+frame_source:
+  frameSourceType: folder        # folder or video
+  frameSourcePath: assets/dummy_images_jpeg
+  origImgHeight: 512
+  origImgWidth: 1024
+  batchSize: 1
+```
 
-### Prerequisites
+```yaml
+backend:
+  inferenceBackendType: yolo_seg_trt
+  modelType: yolo_segmentation
+  outputType: yolo_modified_segmentation
+  preferredInferenceDevice: gpu
+  serializedModelPath: assets/engines/last_bs1_nms_modified_fp32.engine
+```
 
-You need:
+```yaml
+memory:
+  preProcessingTensorGroups:
+    - PinnedInput
+  inferenceTensorGroups:
+    - DeviceInput
+    - DeviceOutput
+  postProcessingTensorGroups:
+    - PinnedOutput
+    - HostPostProcessOutput
+```
 
-- C++17 toolchain
-- CMake
+Tensor names in `inputTensorSpecs` and `outputTensorSpecs` must match the
+TensorRT engine IO tensor names. For the modified YOLO segmentation path, the
+CPU postprocessor currently expects these output names:
+
+- `boxes`
+- `masks`
+- `classlabel`
+- `objectness`
+
+## Result Sinks
+
+Save detections as binary:
+
+```yaml
+result_sink:
+  resultsDir: assets/dummy_results_jpeg
+  resultSinkType: save_detections
+  saveDetMode: normalized
+  drawDetMode: unset
+  lineThickness: 1
+```
+
+Draw detections on images:
+
+```yaml
+result_sink:
+  resultsDir: assets/dummy_results_latest_drawn
+  resultSinkType: draw_detections
+  saveDetMode: unset
+  drawDetMode: contours_with_boxes
+  lineThickness: 1
+```
+
+Supported drawing modes are configured by `DrawDetectionMode` in
+`include/sinks/utils/enums.hpp`.
+
+## Build
+
+Prerequisites:
+
+- C++17 compiler
+- CMake 3.16+
 - OpenCV development package
-- TensorRT 10.x + CUDA toolkit
-- `cxxopts` available to CMake (the project expects a CMake package target `cxxopts::cxxopts`)
+- CUDA Toolkit
+- TensorRT
+- `cxxopts`
+- `yaml-cpp`
+- `doctest` when `YOLO_BUILD_TESTS=ON`
 
-### Ubuntu 22.04 installation commands
-
-The following commands match your TensorRT 10.16.1.11 + CUDA 13.0 setup for a basic installation:
-
-```bash
-sudo apt-get update
-
-sudo apt-get install -y libopencv-dev
-
-sudo dpkg -i assets/nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4_1.0-1_amd64.deb
-
-sudo cp /var/nv-tensorrt-local-repo-ubuntu2204-10.0.0-cuda-12.4/nv-tensorrt-local-2B368663-keyring.gpg /usr/share/keyrings/
-
-sudo apt-get update
-
-sudo apt-get install -y tensorrt libnvinfer-dev libnvinfer-plugin-dev libnvonnxparsers-dev libnvinfer-bin
-
-sudo apt-get install -y libcxxopts-dev
-```
-
-### Build (CMake)
-
-Example out-of-tree build:
+Configure and build:
 
 ```bash
-mkdir -p build
-cd build
-
-cmake \
-  -DCMAKE_BUILD_TYPE=Debug \
-  ..
-
-cmake --build . -j
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ```
 
-The default CMake configuration assumes standard Ubuntu library/include locations (`/usr/include`, `/usr/lib/*`) and does not require extra environment variables.
-
-## Running (CLI)
-
-The current binary (`yoloSegApp`) expects a TensorRT engine and an input directory of images.
-
-### Folder (batched) inference
+If OpenCV is installed outside default CMake search paths:
 
 ```bash
-./bin/yoloSegApp \
-  --mode folder \
-  --enginePath /path/to/model.engine \
-  --videoDirPath /path/to/images \
-  --saveDirPath /path/to/output_dir \
-  --logPath /path/to/run.log \
-  --logModelInfo true
+OPENCV_INSTALL_PATH=/path/to/opencv \
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 ```
 
-Supported image extensions: `.png`, `.jpg` (folder scanning is done via directory iteration).
+Build only CPU-safe tests and helper targets:
 
-### Video inference
+```bash
+cmake -S . -B build/tests -DYOLO_BUILD_APP=OFF -DYOLO_BUILD_TESTS=ON
+cmake --build build/tests -j
+ctest --test-dir build/tests --output-on-failure
+```
 
-`--mode video` is accepted by the CLI but currently prints that it is not implemented yet.
+## Runtime Outputs
 
-See next steps in [`docs/USAGE.md`](docs/USAGE.md) if you want to extend the input source to `batchSize=1`.
+The application logs progress to `logging.logFilePath`. On completion, it logs:
 
-## Using the C++ API
+- total source frames processed
+- total batches processed
+- elapsed wall-clock seconds
+- total FPS
 
-See: [`docs/USAGE.md`](docs/USAGE.md)
+Output files are written under `result_sink.resultsDir`.
 
+## C++ API
+
+```cpp
+#include "application/Application.hpp"
+
+int main() {
+    Application app("configs/YoloSegSimple.yaml");
+    app.run();
+    return 0;
+}
+```
+
+## Additional Docs
+
+- [`docs/USAGE.md`](docs/USAGE.md): short YAML-first usage notes
+- [`docs/POSTPROCESS.md`](docs/POSTPROCESS.md): postprocessing assumptions
+- [`docs/install.md`](docs/install.md): dependency installation notes

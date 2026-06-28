@@ -2,6 +2,9 @@
 
 #include <vector>
 
+/**
+ * @brief Named tensor memory groups used by preprocessing, inference, and postprocessing.
+ */
 enum class TensorGroup {
     HostInput,
     PinnedInput,
@@ -16,4 +19,7 @@ enum class TensorGroup {
     HostPostProcessOutput,
     DevicePostProcessOutput
 };
+/**
+ * @brief Ordered list of tensor groups loaded from YAML.
+ */
 using TensorGroupList = std::vector<TensorGroup>;

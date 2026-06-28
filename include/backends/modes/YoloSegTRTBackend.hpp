@@ -15,22 +15,39 @@ inline constexpr std::array<nvinfer1::TensorIOMode, 2> SupportedTensorModes{
 };
 
 
+/**
+ * @brief TensorRT inference backend for YOLO segmentation engines.
+ */
 class YoloSegTRTBackend : public InferenceBackend {
 
     public:
+        /**
+         * @brief Deserialize a TensorRT engine and create an execution context.
+         * @param config Backend configuration containing the engine path.
+         * @param baseLogger Logger used through the TensorRT logger adaptor.
+         */
         YoloSegTRTBackend(
             const InferenceBackendConfig& config,
             BaseLogger& baseLogger
         );
 
+        /**
+         * @copydoc InferenceBackend::bindTensorViewMap
+         */
         void bindTensorViewMap(const TensorViewMap& bufferViews) override;
 
+        /**
+         * @copydoc InferenceBackend::runInference
+         */
         bool runInference(
             const TensorViewMap& inputBufferViews,
             TensorViewMap& outputBufferViews,
             cudaStream_t stream
         ) override;
 
+        /**
+         * @copydoc InferenceBackend::getTensorSpecs
+         */
         TensorSpecMap getTensorSpecs() override;
 
     private:

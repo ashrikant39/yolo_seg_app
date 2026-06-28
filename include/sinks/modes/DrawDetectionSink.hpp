@@ -7,10 +7,21 @@
 
 namespace fs = std::filesystem;
 
+/**
+ * @brief Result sink that draws detections on source images.
+ */
 class DrawDetectionSink : public ResultSink {
 
     public:
+        /**
+         * @brief Construct from result sink drawing configuration.
+         * @param config Drawing mode and line thickness.
+         */
         DrawDetectionSink(const ResultSinkConfig& config);
+
+        /**
+         * @copydoc ResultSink::consumeSingle
+         */
         void consumeSingle(PostProcessOutput& output, BaseLogger& logger) override;
 
     private:
